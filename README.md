@@ -62,27 +62,62 @@ FLUXO B -- alerta (o que consome o banco)
 Requer o ambiente virtual em `venv/`. Todo comando usa `venv/Scripts/python.exe` —
 nunca o Python global.
 
-Com [just](https://github.com/casey/just) instalado, `just` sozinho lista tudo:
+Com [just](https://github.com/casey/just) instalado, `just` sozinho abre o painel de
+comandos agrupado por fluxo, e `just --list` lista tudo por grupo.
+
+Comece sempre por aqui:
+
+```
+just doctor          # GPU, versoes pregadas, OCR e artefatos, de uma vez
+```
+
+Ambiente:
 
 ```
 just gpu             # a T1000 esta visivel? o que ela suporta?
-just deps            # versoes do stack (o que costuma quebrar a API)
-just test            # suite de testes
-just test-gpu        # inclui os testes que exigem GPU e modelo baixado
+just deps            # versoes do stack, e avisa se transformers/trl divergiram
+just tesseract       # o OCR existe? sem ele, laudo digitalizado nao e lido
+just artefatos       # quais arquivos da esteira ja existem
+```
 
+Ingestao (etapas 03 e 04):
+
+```
+just docs-status     # quantos PDF/DOCX esperam em docs/
+just extrair-texto   # etapa 03: docs/ -> data/chunks/*.jsonl
+just extrair-regras  # etapa 04: chunks -> regras propostas (LENTO, Qwen 7B local)
+just chunks-stats    # o que a etapa 03 produziu, por documento
+just regras-stats    # o que a etapa 04 propos, suspeitas e pendentes de revisao
+just omissoes-stats  # chunks com padrao de limiar e zero regras extraidas
+just manifesto-stats # estado de cada documento processado
+```
+
+Treino (etapas 01 e 02):
+
+```
 just dataset         # etapa 01: gera data/dataset_treino.jsonl
 just dataset-stats   # quantos exemplos existem hoje
 just train           # etapa 02: treina o adaptador LoRA
-just adapter         # mostra o adaptador treinado que esta salvo
+just all             # dataset + train em sequencia
+just adapter         # mostra o adaptador salvo
 just vram            # acompanha uso de VRAM durante o treino
+```
 
-just extrair-texto   # etapa 03: docs/*.pdf -> data/chunks/*.jsonl
+Testes e limpeza:
+
+```
+just test                    # suite completa (exclui os marcados gpu)
+just test-um validacao       # so os testes cujo nome casa com o filtro
+just test-gpu                # os que exigem GPU e modelo baixado
+just clean-adapter           # apaga o adaptador (pede confirmacao)
+just clean-ingestao          # apaga chunks e propostas, PRESERVA as decisoes humanas
 ```
 
 Sem o `just`, cada receita e uma linha so:
 
 ```bash
 venv/Scripts/python.exe scripts/03_extrair_texto.py
+venv/Scripts/python.exe scripts/status.py regras
 venv/Scripts/python.exe -m pytest -v
 ```
 
