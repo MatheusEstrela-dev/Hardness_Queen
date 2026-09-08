@@ -52,3 +52,7 @@ clean:
 # etapa 03: extrai texto e chunks dos documentos em docs/
 extrair-texto:
     {{python}} scripts/03_extrair_texto.py
+
+# etapa 04: extrai as regras dos chunks com o Qwen 7B local
+extrair-regras:
+    {{python}} scripts/04_extrair_regras.py
