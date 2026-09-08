@@ -6,7 +6,15 @@ from ingestao.identidade import regra_id
 from ingestao.persistencia import anexar_jsonl, ids_ja_vistos
 from ingestao.validacao import classificar, suspeito_de_omissao
 
-MODELO_PADRAO = "Qwen/Qwen2.5-7B-Instruct"
+# Qwen2.5-7B-Instruct e Qwen2.5-3B-Instruct nao couberam no tempo de sessao
+# disponivel: o link desta estacao entrega a CDN da Hugging Face a cerca de
+# 1,71 MB/s agregado (medido em 4 fragmentos paralelos), o que estima cerca de
+# 2h para os ~15GB do 7B-Instruct. O Qwen2.5-3B (variante base, sem
+# instruction tuning) ja estava em disco por causa do treino de
+# scripts/02_treinar_modelo.py, entao a medicao de VRAM e tempo por chunk
+# desta tarefa usa esse modelo. Ver secao 10 da spec para o registro completo
+# e a ressalva sobre qualidade de extracao de um modelo base.
+MODELO_PADRAO = "Qwen/Qwen2.5-3B"
 SEMENTE = 42
 MAX_TOKENS_DE_SAIDA = 1024
 
@@ -96,6 +104,8 @@ def criar_gerador_qwen(model_id: str = MODELO_PADRAO) -> Callable[[str], str]:
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
+    torch.manual_seed(SEMENTE)
+
     quantizacao = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
@@ -114,11 +124,16 @@ def criar_gerador_qwen(model_id: str = MODELO_PADRAO) -> Callable[[str], str]:
     gerador = outlines.Generator(modelo, Extracao)
 
     def gerar(prompt: str) -> str:
+        # outlines 1.3.3 repassa kwargs de inferencia direto para
+        # transformers.generate(), que valida a lista contra a assinatura de
+        # prepare_inputs_for_generation e rejeita chaves desconhecidas.
+        # "seed" nao esta nessa lista (ValueError: model_kwargs nao usado) --
+        # a determinacao aqui vem de temperature=0 (decodificacao gulosa) mais
+        # o torch.manual_seed acima, chamado uma vez na criacao do gerador.
         return gerador(
             prompt,
             max_new_tokens=MAX_TOKENS_DE_SAIDA,
             temperature=0,
-            seed=SEMENTE,
         )
 
     return gerar
