@@ -6,15 +6,17 @@ from ingestao.identidade import regra_id
 from ingestao.persistencia import anexar_jsonl, ids_ja_vistos
 from ingestao.validacao import classificar, suspeito_de_omissao
 
-# Qwen2.5-7B-Instruct e Qwen2.5-3B-Instruct nao couberam no tempo de sessao
-# disponivel: o link desta estacao entrega a CDN da Hugging Face a cerca de
-# 1,71 MB/s agregado (medido em 4 fragmentos paralelos), o que estima cerca de
-# 2h para os ~15GB do 7B-Instruct. O Qwen2.5-3B (variante base, sem
-# instruction tuning) ja estava em disco por causa do treino de
-# scripts/02_treinar_modelo.py, entao a medicao de VRAM e tempo por chunk
-# desta tarefa usa esse modelo. Ver secao 10 da spec para o registro completo
-# e a ressalva sobre qualidade de extracao de um modelo base.
-MODELO_PADRAO = "Qwen/Qwen2.5-3B"
+# Modelo de producao pretendido: scripts/04_extrair_regras.py chama
+# criar_gerador_qwen() sem argumento e herda esta constante, entao ela precisa
+# continuar sendo a variante Instruct -- e a que sabe seguir a instrucao de
+# extrair TODOS os limiares, nao so notar que existe um numero no texto.
+#
+# A medicao de VRAM e tempo por chunk feita nesta sessao (ver secao 10 da
+# spec) usou Qwen2.5-3B (variante base) porque os pesos do 7B-Instruct nao
+# couberam no tempo de sessao disponivel (link a ~1,71 MB/s agregado, ~2h
+# estimadas para os ~15GB). Essa medicao passa o modelo explicitamente em
+# tests/test_extracao_real.py -- ela nao depende nem altera este padrao.
+MODELO_PADRAO = "Qwen/Qwen2.5-7B-Instruct"
 SEMENTE = 42
 MAX_TOKENS_DE_SAIDA = 1024
 
@@ -104,6 +106,11 @@ def criar_gerador_qwen(model_id: str = MODELO_PADRAO) -> Callable[[str], str]:
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
+    # Efeito colateral: torch.manual_seed muda o estado global do gerador de
+    # numeros aleatorios do processo, nao so deste gerador. Inofensivo aqui
+    # porque a decodificacao e gulosa (temperature=0), mas quem compartilhar
+    # o processo com outro codigo que depende de aleatoriedade (ex.: o script
+    # de treino) nao deveria esperar isso.
     torch.manual_seed(SEMENTE)
 
     quantizacao = BitsAndBytesConfig(
