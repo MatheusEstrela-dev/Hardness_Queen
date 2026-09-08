@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Revisao de limiares</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
+  .trecho { background: #fffbe6; border-left: 4px solid #e0b400; padding: 1rem; font-size: 1.1rem; }
+  .campos { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem 1rem; margin: 1rem 0; }
+  .campo strong { display: block; font-size: .75rem; color: #666; text-transform: uppercase; }
+  .suspeito { background: #ffe6e6; border-left: 4px solid #cc0000; padding: .5rem 1rem; }
+  .acoes { display: flex; gap: .5rem; align-items: center; }
+  button { padding: .5rem 1rem; font-size: 1rem; cursor: pointer; }
+  #fim { display: none; }
+</style>
+</head>
+<body>
+<h1>Revisao de limiares</h1>
+<p id="contador"></p>
+
+<div id="cartao">
+  <div class="trecho" id="trecho"></div>
+  <div class="suspeito" id="motivo" hidden></div>
+  <div class="campos" id="campos"></div>
+  <div class="acoes">
+    <button onclick="decidir('aprovado')">Aprovar (A)</button>
+    <button onclick="decidir('rejeitado')">Rejeitar (R)</button>
+    <button onclick="corrigir()">Corrigir valor (C)</button>
+  </div>
+</div>
+
+<p id="fim">Fila vazia. Nada pendente de revisao.</p>
+
+<script>
+let fila = [];
+let atual = null;
+const revisor = prompt("Seu nome, para a trilha de auditoria:") || "nao identificado";
+
+async function carregar() {
+  const resposta = await fetch("/api/pendentes");
+  const corpo = await resposta.json();
+  fila = corpo.pendentes;
+  mostrar();
+}
+
+function mostrar() {
+  atual = fila.shift() || null;
+  document.getElementById("contador").textContent =
+    atual ? `${fila.length + 1} pendente(s)` : "";
+  document.getElementById("cartao").hidden = !atual;
+  document.getElementById("fim").style.display = atual ? "none" : "block";
+  if (!atual) return;
+
+  document.getElementById("trecho").textContent = atual.fonte_trecho;
+  const motivo = document.getElementById("motivo");
+  motivo.hidden = atual.status !== "suspeito";
+  motivo.textContent = atual.motivo_suspeita || "";
+
+  const ordem = ["valor", "unidade", "entidade_nome", "nivel", "janela_horas",
+                 "dominio", "grandeza", "fonte_doc", "fonte_pagina"];
+  document.getElementById("campos").innerHTML = ordem
+    .map(campo => `<div class="campo"><strong>${campo}</strong>${atual[campo] ?? "-"}</div>`)
+    .join("");
+}
+
+async function decidir(veredito, valorCorrigido) {
+  if (!atual) return;
+  await fetch("/api/decisao", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      regra_id: atual.regra_id,
+      veredito: veredito,
+      valor_corrigido: valorCorrigido ?? null,
+      revisor: revisor,
+    }),
+  });
+  mostrar();
+}
+
+function corrigir() {
+  if (!atual) return;
+  const entrada = prompt("Valor correto:", atual.valor);
+  if (entrada === null) return;
+  const valor = parseFloat(entrada.replace(",", "."));
+  if (Number.isNaN(valor)) return;
+  decidir("corrigido", valor);
+}
+
+document.addEventListener("keydown", evento => {
+  if (evento.target.tagName === "INPUT") return;
+  const tecla = evento.key.toLowerCase();
+  if (tecla === "a") decidir("aprovado");
+  if (tecla === "r") decidir("rejeitado");
+  if (tecla === "c") corrigir();
+});
+
+carregar();
+</script>
+</body>
+</html>

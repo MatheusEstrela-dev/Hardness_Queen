@@ -65,6 +65,8 @@ adaptador  := "models/lora_treinado"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "docs-status" "quantos PDF/DOCX esperam em docs/"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "extrair-texto" "etapa 03: docs/ -> chunks com procedencia"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "extrair-regras" "etapa 04: chunks -> regras (Qwen 7B local, LENTO)"
+    printf "  {{GREEN}}%-20s{{RESET}} %s\n" "revisar" "etapa 05: sobe a fila de revisao em http://127.0.0.1:8100"
+    printf "  {{GREEN}}%-20s{{RESET}} %s\n" "ingestao" "esteira completa: extrai texto, extrai regras e abre a revisao"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "chunks-stats" "o que a etapa 03 produziu, por documento"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "regras-stats" "o que a etapa 04 propos, e quantas suspeitas"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "omissoes-stats" "chunks com padrao de limiar e zero regras"
@@ -145,6 +147,15 @@ extrair-texto:
 [group('02 INGESTAO')]
 extrair-regras:
     {{python}} scripts/04_extrair_regras.py
+
+# etapa 05: sobe a fila de revisao em http://127.0.0.1:8100
+[group('02 INGESTAO')]
+revisar:
+    {{python}} scripts/05_revisar.py
+
+# esteira completa: extrai texto, extrai regras e abre a revisao
+[group('02 INGESTAO')]
+ingestao: extrair-texto extrair-regras revisar
 
 # o que a etapa 03 produziu, por documento
 [group('02 INGESTAO')]

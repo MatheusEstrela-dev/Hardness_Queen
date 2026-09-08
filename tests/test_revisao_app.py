@@ -1,0 +1,131 @@
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from ingestao.persistencia import escrever_jsonl, ler_jsonl
+from ingestao.revisao.app import criar_app
+
+
+def _regra(regra_id: str, valor: float = 100.0) -> dict:
+    return {
+        "regra_id": regra_id,
+        "chunk_id": "c1",
+        "dominio": "geologia",
+        "entidade_tipo": "tipo_solo",
+        "entidade_nome": "gnaisse",
+        "grandeza": "chuva_acumulada",
+        "janela_horas": 72,
+        "unidade": "mm",
+        "nivel": "critico",
+        "valor": valor,
+        "fonte_trecho": "saturacao a partir de 100mm em 72h",
+        "fonte_doc": "laudo.pdf",
+        "fonte_pagina": 12,
+        "fonte_secao": "4.2 Caracterizacao do solo",
+        "status": "ok",
+        "motivo_suspeita": None,
+    }
+
+
+@pytest.fixture
+def ambiente(tmp_path: Path):
+    propostas = tmp_path / "propostas.jsonl"
+    decisoes = tmp_path / "decisoes.jsonl"
+    aprovadas = tmp_path / "aprovadas.jsonl"
+    escrever_jsonl(propostas, [_regra("r1"), _regra("r2")])
+    cliente = TestClient(criar_app(propostas, decisoes, aprovadas))
+    return cliente, decisoes, aprovadas
+
+
+def test_fila_lista_todas_as_pendentes(ambiente):
+    cliente, _, _ = ambiente
+
+    corpo = cliente.get("/api/pendentes").json()
+
+    assert corpo["total"] == 2
+
+
+def test_aprovar_grava_decisao_com_revisor(ambiente):
+    cliente, decisoes, _ = ambiente
+
+    resposta = cliente.post(
+        "/api/decisao",
+        json={"regra_id": "r1", "veredito": "aprovado", "revisor": "matheus"},
+    )
+
+    assert resposta.status_code == 200
+    registro = ler_jsonl(decisoes)[0]
+    assert registro["regra_id"] == "r1"
+    assert registro["revisor"] == "matheus"
+    assert registro["decidido_em"]
+
+
+def test_regra_decidida_sai_da_fila(ambiente):
+    cliente, _, _ = ambiente
+    cliente.post("/api/decisao", json={"regra_id": "r1", "veredito": "aprovado", "revisor": "matheus"})
+
+    corpo = cliente.get("/api/pendentes").json()
+
+    assert corpo["total"] == 1
+    assert corpo["pendentes"][0]["regra_id"] == "r2"
+
+
+def test_aprovada_entra_no_arquivo_de_aprovadas(ambiente):
+    cliente, _, aprovadas = ambiente
+
+    cliente.post("/api/decisao", json={"regra_id": "r1", "veredito": "aprovado", "revisor": "matheus"})
+
+    assert [r["regra_id"] for r in ler_jsonl(aprovadas)] == ["r1"]
+
+
+def test_rejeitada_nao_entra_nas_aprovadas(ambiente):
+    cliente, _, aprovadas = ambiente
+
+    cliente.post("/api/decisao", json={"regra_id": "r1", "veredito": "rejeitado", "revisor": "matheus"})
+
+    assert ler_jsonl(aprovadas) == []
+
+
+def test_correcao_do_valor_entra_nas_aprovadas_com_o_valor_novo(ambiente):
+    cliente, _, aprovadas = ambiente
+
+    cliente.post(
+        "/api/decisao",
+        json={"regra_id": "r1", "veredito": "corrigido", "valor_corrigido": 90.0, "revisor": "matheus"},
+    )
+
+    aprovada = ler_jsonl(aprovadas)[0]
+    assert aprovada["valor"] == 90.0
+    assert aprovada["valor_original"] == 100.0
+
+
+def test_decisao_para_regra_inexistente_devolve_404(ambiente):
+    cliente, _, _ = ambiente
+
+    resposta = cliente.post(
+        "/api/decisao",
+        json={"regra_id": "inexistente", "veredito": "aprovado", "revisor": "matheus"},
+    )
+
+    assert resposta.status_code == 404
+
+
+def test_veredito_invalido_e_recusado_na_validacao(ambiente):
+    cliente, _, _ = ambiente
+
+    resposta = cliente.post(
+        "/api/decisao",
+        json={"regra_id": "r1", "veredito": "talvez", "revisor": "matheus"},
+    )
+
+    assert resposta.status_code == 422
+
+
+def test_pagina_de_revisao_responde(ambiente):
+    cliente, _, _ = ambiente
+
+    resposta = cliente.get("/")
+
+    assert resposta.status_code == 200
+    assert "text/html" in resposta.headers["content-type"]
