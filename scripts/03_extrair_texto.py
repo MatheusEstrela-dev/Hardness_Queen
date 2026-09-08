@@ -35,7 +35,15 @@ def main() -> int:
             estados["pulado"] += 1
             continue
 
-        chunks, estado = extrair(caminho)
+        try:
+            chunks, estado = extrair(caminho)
+        except Exception as erro:
+            estado = "erro_extracao"
+            registrar_documento(MANIFESTO, caminho.name, hash_doc, estado, 0, 0)
+            estados[estado] += 1
+            print(f"[{estado}] {caminho.name}: {erro}")
+            continue
+
         escrever_jsonl(
             PASTA_CHUNKS / f"{caminho.stem}.jsonl",
             [chunk.model_dump() for chunk in chunks],

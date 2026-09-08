@@ -1,3 +1,5 @@
+import importlib.util
+import json
 from pathlib import Path
 
 import pymupdf
@@ -5,6 +7,15 @@ import pytest
 from docx import Document
 
 from ingestao.extracao_texto import extrair, extrair_docx, extrair_pdf, titulo_da_secao
+
+_SCRIPT_CLI = Path(__file__).resolve().parents[1] / "scripts" / "03_extrair_texto.py"
+
+
+def _carregar_cli():
+    especificacao = importlib.util.spec_from_file_location("cli_extrair_texto", _SCRIPT_CLI)
+    modulo = importlib.util.module_from_spec(especificacao)
+    especificacao.loader.exec_module(modulo)
+    return modulo
 
 
 def _pdf_com_texto(caminho: Path) -> Path:
@@ -73,6 +84,40 @@ def test_pdf_com_tabela_preserva_as_colunas_em_markdown(tmp_path: Path):
     assert "100" in linha_do_gnaisse
 
 
+def _pdf_multipagina_com_secoes(caminho: Path) -> Path:
+    documento = pymupdf.open()
+
+    pagina1 = documento.new_page()
+    pagina1.insert_text((72, 100), "4.2 Caracterizacao do solo gnaisse", fontsize=16)
+    pagina1.insert_text((72, 140), "Corpo da secao 4.2 na pagina 1.", fontsize=11)
+
+    pagina2 = documento.new_page()
+    pagina2.insert_text((72, 100), "A saturacao ocorre a partir de 100mm em 72h.", fontsize=11)
+
+    pagina3 = documento.new_page()
+    pagina3.insert_text((72, 100), "5.1 Limiares de vazao", fontsize=16)
+    pagina3.insert_text((72, 140), "Corpo da secao 5.1 na pagina 3.", fontsize=11)
+
+    documento.save(caminho)
+    documento.close()
+    return caminho
+
+
+def test_pdf_propaga_secao_para_pagina_seguinte_sem_cabecalho(tmp_path: Path):
+    chunks, _ = extrair_pdf(_pdf_multipagina_com_secoes(tmp_path / "multipagina.pdf"))
+
+    assert len(chunks) == 3
+    # pagina 2 nao tem cabecalho proprio: herda a secao da pagina 1
+    assert chunks[1].secao == "4.2 Caracterizacao do solo gnaisse"
+
+
+def test_pdf_novo_cabecalho_substitui_a_secao_herdada(tmp_path: Path):
+    chunks, _ = extrair_pdf(_pdf_multipagina_com_secoes(tmp_path / "multipagina.pdf"))
+
+    # pagina 3 tem cabecalho proprio: nao deve vazar a secao da pagina 1
+    assert chunks[2].secao == "5.1 Limiares de vazao"
+
+
 def test_pdf_sem_camada_de_texto_nao_produz_zero_em_silencio(tmp_path: Path):
     chunks, estado = extrair_pdf(_pdf_sem_camada_texto(tmp_path / "digitalizado.pdf"))
 
@@ -116,3 +161,32 @@ def test_titulo_da_secao_pega_o_primeiro_cabecalho():
 
 def test_titulo_da_secao_sem_cabecalho_devolve_nulo():
     assert titulo_da_secao("apenas corpo de texto") is None
+
+
+def test_cli_documento_invalido_nao_interrompe_o_lote(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    pasta_docs = tmp_path / "docs"
+    pasta_docs.mkdir()
+    (pasta_docs / "a_corrompido.pdf").write_bytes(b"nao sou um pdf valido")
+    _pdf_com_texto(pasta_docs / "b_valido.pdf")
+
+    modulo = _carregar_cli()
+    resultado = modulo.main()
+
+    saida = capsys.readouterr().out
+    assert resultado == 0
+    # documento invalido nao interrompe o lote: o proximo documento ainda e processado
+    assert "[erro_extracao] a_corrompido.pdf" in saida
+    assert "[texto_nativo] b_valido.pdf: 1 chunks" in saida
+    assert "erro_extracao: 1" in saida
+    assert "texto_nativo: 1" in saida
+
+    registros = {
+        registro["doc"]: registro
+        for registro in (
+            json.loads(linha)
+            for linha in (tmp_path / "data" / "manifesto.jsonl").read_text(encoding="utf-8").splitlines()
+        )
+    }
+    assert registros["a_corrompido.pdf"]["estado"] == "erro_extracao"
+    assert registros["b_valido.pdf"]["estado"] == "texto_nativo"
