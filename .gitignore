@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+models/
+data/chunks/
+data/regras_propostas.jsonl
+data/regras_aprovadas.jsonl
+data/decisoes.jsonl
+data/manifesto.jsonl
+docs/*.pdf
+docs/*.docx
