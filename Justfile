@@ -48,3 +48,7 @@ adapter:
 # apaga o adaptador treinado para comecar do zero
 clean:
     @if (Test-Path models/lora_treinado) { Remove-Item -Recurse -Force models/lora_treinado; Write-Host 'Adaptador removido.' } else { Write-Host 'Nada para limpar.' }
+
+# etapa 03: extrai texto e chunks dos documentos em docs/
+extrair-texto:
+    {{python}} scripts/03_extrair_texto.py
