@@ -3,6 +3,7 @@ from ingestao.validacao import (
     classificar,
     extremos_citados,
     normalizar,
+    pode_conter_limiar,
     suspeito_de_omissao,
     trecho_confere,
     valor_plausivel,
@@ -304,6 +305,30 @@ def test_classificar_aceita_regra_genuina_com_extremos_citados():
     )
 
     assert classificar(regra, chunk) == ("ok", None)
+
+
+def test_pode_conter_limiar_aceita_chuva_em_mm():
+    assert pode_conter_limiar("acumulado de 30 mm em 24h")
+
+
+def test_pode_conter_limiar_aceita_vento_em_kmh():
+    assert pode_conter_limiar("rajadas de 90 km/h")
+
+
+def test_pode_conter_limiar_aceita_taxa_em_mm_h():
+    assert pode_conter_limiar("taxa de 6 mm/h")
+
+
+def test_pode_conter_limiar_aceita_refletividade_em_dbz():
+    assert pode_conter_limiar("refletividade de 45 dBZ")
+
+
+def test_pode_conter_limiar_recusa_prosa_sem_numero():
+    assert not pode_conter_limiar("este capitulo descreve a metodologia adotada")
+
+
+def test_pode_conter_limiar_recusa_numero_sem_unidade():
+    assert not pode_conter_limiar("o artigo 5 da lei")
 
 
 def test_classificar_prioriza_trecho_confere_sobre_extremos_citados():

@@ -182,8 +182,9 @@ def test_processar_grava_regras_e_conta(tmp_path: Path):
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
     falhas = tmp_path / "falhas.jsonl"
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
 
-    resumo = processar([_chunk()], _gerador(_uma_regra()), saida, omissoes, falhas)
+    resumo = processar([_chunk()], _gerador(_uma_regra()), saida, omissoes, falhas, sem_padrao)
 
     assert resumo["regras"] == 1
     assert resumo["chunks_processados"] == 1
@@ -194,9 +195,10 @@ def test_processar_retoma_e_pula_chunk_ja_feito(tmp_path: Path):
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
     falhas = tmp_path / "falhas.jsonl"
-    processar([_chunk()], _gerador(_uma_regra()), saida, omissoes, falhas)
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
+    processar([_chunk()], _gerador(_uma_regra()), saida, omissoes, falhas, sem_padrao)
 
-    resumo = processar([_chunk()], _gerador(_uma_regra()), saida, omissoes, falhas)
+    resumo = processar([_chunk()], _gerador(_uma_regra()), saida, omissoes, falhas, sem_padrao)
 
     assert resumo["chunks_pulados"] == 1
     assert len(ler_jsonl(saida)) == 1
@@ -206,8 +208,9 @@ def test_chunk_com_limiar_e_zero_regras_vai_para_omissoes(tmp_path: Path):
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
     falhas = tmp_path / "falhas.jsonl"
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
 
-    resumo = processar([_chunk()], _gerador({"regras": []}), saida, omissoes, falhas)
+    resumo = processar([_chunk()], _gerador({"regras": []}), saida, omissoes, falhas, sem_padrao)
 
     assert resumo["omissoes"] == 1
     assert ler_jsonl(omissoes)[0]["chunk_id"] == "c1"
@@ -227,13 +230,14 @@ def test_chunk_que_falha_nao_interrompe_os_demais(tmp_path: Path):
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
     falhas = tmp_path / "falhas.jsonl"
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
     chunk_ruim = _chunk("c1")
     chunk_bom = Chunk(
         chunk_id="c2",
         doc="laudo.pdf",
         pagina=13,
         secao="4.3 Outra secao",
-        texto="outro trecho qualquer",
+        texto="outro trecho qualquer, com limiar de 50mm em 24h",
     )
 
     resumo = processar(
@@ -242,6 +246,7 @@ def test_chunk_que_falha_nao_interrompe_os_demais(tmp_path: Path):
         saida,
         omissoes,
         falhas,
+        sem_padrao,
     )
 
     assert resumo["chunks_processados"] == 1
@@ -252,8 +257,9 @@ def test_falha_e_registrada_no_arquivo_de_falhas_com_o_erro(tmp_path: Path):
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
     falhas = tmp_path / "falhas.jsonl"
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
 
-    processar([_chunk()], _gerador_com_falha({TEXTO}, _uma_regra()), saida, omissoes, falhas)
+    processar([_chunk()], _gerador_com_falha({TEXTO}, _uma_regra()), saida, omissoes, falhas, sem_padrao)
 
     registros = ler_jsonl(falhas)
     assert len(registros) == 1
@@ -267,8 +273,9 @@ def test_resumo_conta_falhas(tmp_path: Path):
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
     falhas = tmp_path / "falhas.jsonl"
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
 
-    resumo = processar([_chunk()], _gerador_com_falha({TEXTO}, _uma_regra()), saida, omissoes, falhas)
+    resumo = processar([_chunk()], _gerador_com_falha({TEXTO}, _uma_regra()), saida, omissoes, falhas, sem_padrao)
 
     assert resumo["falhas"] == 1
 
@@ -277,12 +284,13 @@ def test_reexecucao_pula_chunk_ja_marcado_como_falha(tmp_path: Path):
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
     falhas = tmp_path / "falhas.jsonl"
-    processar([_chunk()], _gerador_com_falha({TEXTO}, _uma_regra()), saida, omissoes, falhas)
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
+    processar([_chunk()], _gerador_com_falha({TEXTO}, _uma_regra()), saida, omissoes, falhas, sem_padrao)
 
     # o gerador desta segunda chamada nao falharia mais, mas o chunk ja esta
     # marcado como falha e deve ser pulado -- o operador reprocessa apagando
     # data/possiveis_falhas.jsonl, nao automaticamente.
-    resumo = processar([_chunk()], _gerador(_uma_regra()), saida, omissoes, falhas)
+    resumo = processar([_chunk()], _gerador(_uma_regra()), saida, omissoes, falhas, sem_padrao)
 
     assert resumo["chunks_pulados"] == 1
     assert resumo["falhas"] == 0
@@ -310,20 +318,21 @@ def test_json_truncado_no_meio_de_uma_string_vira_falha_registrada_e_nao_para_o_
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
     falhas = tmp_path / "falhas.jsonl"
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
     chunk_truncado = _chunk("c1")
     chunk_bom_1 = Chunk(
         chunk_id="c2",
         doc="laudo.pdf",
         pagina=13,
         secao="4.3 Outra secao",
-        texto="outro trecho qualquer",
+        texto="outro trecho qualquer, com limiar de 50mm em 24h",
     )
     chunk_bom_2 = Chunk(
         chunk_id="c3",
         doc="laudo.pdf",
         pagina=14,
         secao="4.4 Mais uma secao",
-        texto="ainda outro trecho",
+        texto="ainda outro trecho, com limiar de 60mm em 24h",
     )
 
     resumo = processar(
@@ -332,6 +341,7 @@ def test_json_truncado_no_meio_de_uma_string_vira_falha_registrada_e_nao_para_o_
         saida,
         omissoes,
         falhas,
+        sem_padrao,
     )
 
     assert resumo["falhas"] == 1
@@ -367,6 +377,7 @@ def test_chunk_com_tabela_reconhecida_nao_chama_o_gerador(tmp_path: Path):
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
     falhas = tmp_path / "falhas.jsonl"
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
     chunk_com_tabela = Chunk(
         chunk_id="c1",
         doc="protocolo.docx",
@@ -376,7 +387,7 @@ def test_chunk_com_tabela_reconhecida_nao_chama_o_gerador(tmp_path: Path):
     )
     gerar, chamadas = _gerador_que_conta_chamadas(_uma_regra())
 
-    resumo = processar([chunk_com_tabela], gerar, saida, omissoes, falhas)
+    resumo = processar([chunk_com_tabela], gerar, saida, omissoes, falhas, sem_padrao)
 
     assert chamadas["total"] == 0
     assert resumo["chunks_via_tabela"] == 1
@@ -392,9 +403,10 @@ def test_chunk_sem_tabela_chama_o_gerador_normalmente(tmp_path: Path):
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
     falhas = tmp_path / "falhas.jsonl"
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
     gerar, chamadas = _gerador_que_conta_chamadas(_uma_regra())
 
-    resumo = processar([_chunk()], gerar, saida, omissoes, falhas)
+    resumo = processar([_chunk()], gerar, saida, omissoes, falhas, sem_padrao)
 
     assert chamadas["total"] == 1
     assert resumo["chunks_via_tabela"] == 0
@@ -412,6 +424,7 @@ def test_linhas_de_tabela_ignoradas_contam_mesmo_quando_o_chunk_vai_para_o_model
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
     falhas = tmp_path / "falhas.jsonl"
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
     texto_com_tabela_historica = (
         "|Cidades|N de evento|Data|Limiar|CAD|\n"
         "|---|---|---|---|---|\n"
@@ -420,8 +433,71 @@ def test_linhas_de_tabela_ignoradas_contam_mesmo_quando_o_chunk_vai_para_o_model
     chunk = Chunk(chunk_id="c1", doc="protocolo.docx", pagina=2, secao="2. Historico", texto=texto_com_tabela_historica)
     gerar, chamadas = _gerador_que_conta_chamadas({"regras": []})
 
-    resumo = processar([chunk], gerar, saida, omissoes, falhas)
+    resumo = processar([chunk], gerar, saida, omissoes, falhas, sem_padrao)
 
     assert chamadas["total"] == 1
     assert resumo["linhas_de_tabela_ignoradas"] == 1
     assert resumo["chunks_via_modelo"] == 1
+
+
+def test_chunk_sem_padrao_de_limiar_nao_chama_o_gerador_e_e_contado(tmp_path: Path):
+    saida = tmp_path / "propostas.jsonl"
+    omissoes = tmp_path / "omissoes.jsonl"
+    falhas = tmp_path / "falhas.jsonl"
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
+    chunk_sem_padrao = Chunk(
+        chunk_id="c1",
+        doc="laudo.pdf",
+        pagina=1,
+        secao="1. Introducao",
+        texto="este capitulo descreve a metodologia adotada no estudo, sem nenhum limiar numerico.",
+    )
+    gerar, chamadas = _gerador_que_conta_chamadas(_uma_regra())
+
+    resumo = processar([chunk_sem_padrao], gerar, saida, omissoes, falhas, sem_padrao)
+
+    assert chamadas["total"] == 0
+    assert resumo["chunks_sem_padrao"] == 1
+    assert resumo["chunks_via_modelo"] == 0
+    assert len(ler_jsonl(saida)) == 0
+
+
+def test_chunk_com_padrao_de_limiar_chama_o_gerador(tmp_path: Path):
+    saida = tmp_path / "propostas.jsonl"
+    omissoes = tmp_path / "omissoes.jsonl"
+    falhas = tmp_path / "falhas.jsonl"
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
+    gerar, chamadas = _gerador_que_conta_chamadas(_uma_regra())
+
+    resumo = processar([_chunk()], gerar, saida, omissoes, falhas, sem_padrao)
+
+    assert chamadas["total"] == 1
+    assert resumo["chunks_sem_padrao"] == 0
+
+
+def test_chunk_sem_padrao_e_gravado_e_pulado_na_reexecucao(tmp_path: Path):
+    saida = tmp_path / "propostas.jsonl"
+    omissoes = tmp_path / "omissoes.jsonl"
+    falhas = tmp_path / "falhas.jsonl"
+    sem_padrao = tmp_path / "sem_padrao.jsonl"
+    chunk_sem_padrao = Chunk(
+        chunk_id="c1",
+        doc="laudo.pdf",
+        pagina=1,
+        secao="1. Introducao",
+        texto="este capitulo descreve a metodologia adotada no estudo, sem nenhum limiar numerico.",
+    )
+
+    processar([chunk_sem_padrao], _gerador(_uma_regra()), saida, omissoes, falhas, sem_padrao)
+
+    registros = ler_jsonl(sem_padrao)
+    assert len(registros) == 1
+    assert registros[0]["chunk_id"] == "c1"
+    assert registros[0]["doc"] == "laudo.pdf"
+    assert registros[0]["pagina"] == 1
+    assert "texto" not in registros[0]
+
+    resumo = processar([chunk_sem_padrao], _gerador(_uma_regra()), saida, omissoes, falhas, sem_padrao)
+
+    assert resumo["chunks_pulados"] == 1
+    assert resumo["chunks_sem_padrao"] == 0

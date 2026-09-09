@@ -11,6 +11,7 @@ PASTA_CHUNKS = Path("data/chunks")
 PROPOSTAS = Path("data/regras_propostas.jsonl")
 OMISSOES = Path("data/possiveis_omissoes.jsonl")
 FALHAS = Path("data/possiveis_falhas.jsonl")
+SEM_PADRAO = Path("data/possiveis_sem_padrao.jsonl")
 
 
 def main() -> int:
@@ -23,13 +24,18 @@ def main() -> int:
     print(f"{len(chunks)} chunks para processar. Carregando o modelo...")
 
     gerar = criar_gerador_qwen()
-    resumo = processar(chunks, gerar, PROPOSTAS, OMISSOES, FALHAS)
+    resumo = processar(chunks, gerar, PROPOSTAS, OMISSOES, FALHAS, SEM_PADRAO)
 
     print("\nResumo:")
     for chave, valor in resumo.items():
         print(f"  {chave}: {valor}")
     if resumo["omissoes"]:
         print(f"\n{resumo['omissoes']} chunk(s) com padrao de limiar e zero regras em '{OMISSOES}'.")
+    if resumo["chunks_sem_padrao"]:
+        print(
+            f"\n{resumo['chunks_sem_padrao']} chunk(s) sem padrao de limiar foram descartados sem "
+            f"passar pelo modelo e registrados em '{SEM_PADRAO}'."
+        )
     if resumo["falhas"]:
         print(
             f"\n{resumo['falhas']} chunk(s) falharam durante a extracao e foram registrados em "

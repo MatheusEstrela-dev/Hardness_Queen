@@ -5,7 +5,7 @@ from ingestao.contrato import Chunk, Extracao, Regra
 from ingestao.identidade import regra_id
 from ingestao.persistencia import anexar_jsonl, ids_ja_vistos
 from ingestao.tabelas import extrair_de_tabelas
-from ingestao.validacao import classificar, suspeito_de_omissao
+from ingestao.validacao import classificar, pode_conter_limiar, suspeito_de_omissao
 
 # Modelo de producao: scripts/04_extrair_regras.py chama
 # criar_gerador_qwen() sem argumento e herda esta constante, entao ela precisa
@@ -94,15 +94,20 @@ def processar(
     saida: Path,
     omissoes: Path,
     falhas: Path,
+    sem_padrao: Path,
 ) -> dict:
-    # falhas entra no conjunto de "ja feitos" igual a saida e omissoes: um
-    # chunk que falhou (OOM, JSON truncado) nao e retentado numa
-    # reexecucao automatica. Apagar data/possiveis_falhas.jsonl e o jeito
-    # do operador forcar nova tentativa -- util porque OOM pode ser
-    # transitorio (outro processo liberou VRAM) enquanto um chunk
-    # malformado nao muda sozinho.
-    ja_feitos = ids_ja_vistos(saida, "chunk_id") | ids_ja_vistos(omissoes, "chunk_id") | ids_ja_vistos(
-        falhas, "chunk_id"
+    # falhas e sem_padrao entram no conjunto de "ja feitos" igual a saida e
+    # omissoes: um chunk que falhou (OOM, JSON truncado) ou que foi
+    # descartado por nao ter padrao de limiar nao e retentado numa
+    # reexecucao automatica. Apagar o arquivo correspondente e o jeito do
+    # operador forcar nova tentativa -- util porque OOM pode ser transitorio
+    # (outro processo liberou VRAM) enquanto um chunk malformado ou sem
+    # padrao nao muda sozinho.
+    ja_feitos = (
+        ids_ja_vistos(saida, "chunk_id")
+        | ids_ja_vistos(omissoes, "chunk_id")
+        | ids_ja_vistos(falhas, "chunk_id")
+        | ids_ja_vistos(sem_padrao, "chunk_id")
     )
 
     resumo = {
@@ -110,6 +115,7 @@ def processar(
         "chunks_pulados": 0,
         "chunks_via_tabela": 0,
         "chunks_via_modelo": 0,
+        "chunks_sem_padrao": 0,
         "regras": 0,
         "regras_via_tabela": 0,
         "regras_via_modelo": 0,
@@ -134,6 +140,11 @@ def processar(
             # prosa nao perde recall por isso, porque suspeito_de_omissao
             # roda embaixo sobre chunk.texto inteiro, independente de qual
             # caminho produziu as regras.
+            #
+            # Este parser roda antes do filtro de padrao (abaixo) e nao e
+            # gated por ele de proposito: uma linha de tabela e reconhecida
+            # pela estrutura (colunas, cabecalho), nao por regex sobre o
+            # texto corrido, entao o filtro nao tem nada a dizer sobre ela.
             regras_de_tabela, linhas_ignoradas = extrair_de_tabelas(chunk)
             # Contado sempre, mesmo quando o chunk acaba indo para o modelo
             # (nenhuma tabela reconhecida): senao "nao achou nada" ficaria
@@ -144,6 +155,38 @@ def processar(
                 regras = regras_de_tabela
                 resumo["chunks_via_tabela"] += 1
                 resumo["regras_via_tabela"] += len(regras_de_tabela)
+            elif not pode_conter_limiar(chunk.texto):
+                # Filtro de custo (task-20, medido sobre os 92 chunks reais
+                # do acervo: 23 com padrao, 69 sem -- ~140s por chunk no
+                # modelo, entao os 69 sozinhos custariam ~2.7h de GPU para um
+                # retorno garantido de zero). Sem NENHUM digito seguido de
+                # unidade em todo o chunk, nao ha limiar numerico possivel
+                # nele -- mandar isso para o modelo so gasta GPU por um
+                # resultado ja conhecido.
+                #
+                # Risco assumido: um limiar escrito por extenso ("cota de
+                # noventa metros") nao tem digito e escapa deste filtro,
+                # entao esse chunk seria pulado sem chegar ao modelo. Em
+                # documentos tecnicos de Defesa Civil o limiar e escrito
+                # numericamente quase sempre, entao o risco e baixo -- mas e
+                # real, e agora e uma escolha deliberada, nao um acidente:
+                # nada se perde em silencio, porque o chunk pulado e
+                # registrado em sem_padrao e entra na contagem abaixo, entao
+                # o operador pode auditar exatamente quantos chunks foram
+                # descartados por este motivo.
+                #
+                # pode_conter_limiar e o mesmo predicado usado por
+                # suspeito_de_omissao (ingestao/validacao.py): a pergunta e
+                # identica ("este texto pode conter um limiar?"), entao a
+                # rede de recall permanece coerente com o filtro -- um chunk
+                # pulado aqui nunca seria sinalizado como omissao la, porque
+                # os dois usam a mesma resposta.
+                anexar_jsonl(
+                    sem_padrao,
+                    {"chunk_id": chunk.chunk_id, "doc": chunk.doc, "pagina": chunk.pagina},
+                )
+                resumo["chunks_sem_padrao"] += 1
+                continue
             else:
                 regras = extrair_do_chunk(chunk, gerar)
                 resumo["chunks_via_modelo"] += 1

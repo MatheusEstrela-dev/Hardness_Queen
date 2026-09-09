@@ -162,7 +162,17 @@ def classificar(regra: RegraExtraida, texto_chunk: str) -> tuple[str, str | None
     return "ok", None
 
 
+def pode_conter_limiar(texto: str) -> bool:
+    # Predicado publico: usado tanto pela rede de recall (suspeito_de_omissao,
+    # abaixo) quanto pelo filtro de custo em processar() (extrator_regras.py,
+    # task-20). As duas perguntas sao a mesma pergunta -- "este texto pode
+    # conter um limiar numerico?" -- entao precisam da mesma resposta. Duas
+    # implementacoes independentes desse julgamento poderiam divergir com o
+    # tempo e, pior, discordar entre si num mesmo chunk.
+    return bool(_PADRAO_DE_LIMIAR.search(texto))
+
+
 def suspeito_de_omissao(texto_chunk: str, total_de_regras: int) -> bool:
     if total_de_regras > 0:
         return False
-    return bool(_PADRAO_DE_LIMIAR.search(texto_chunk))
+    return pode_conter_limiar(texto_chunk)
