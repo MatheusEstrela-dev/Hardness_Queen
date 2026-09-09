@@ -27,6 +27,7 @@ Trecho ({secao}):
 Extraia TODOS os limiares numericos do trecho acima. Em fonte_trecho copie o
 pedaco EXATO que sustenta o numero. Faixa "entre X e Y" e UMA regra com
 valor_min=X e valor_max=Y; "acima de X" preenche so valor_min.
+"<= X", "ate X", "no maximo X" ou "abaixo de X" preenche so valor_max, sem inventar zero em valor_min.
 Niveis por cor: verde, amarelo, laranja, vermelho, roxo (menos para mais grave).
 Limiar valido para todo o estado usa entidade_tipo="estado" e
 entidade_nome="minas gerais", em vez de inventar entidade que o texto nao nomeia.

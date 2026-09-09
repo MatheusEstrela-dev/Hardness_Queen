@@ -10,6 +10,11 @@ from collections import Counter
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from ingestao.contrato import RegraExtraida
+from ingestao.validacao import classificar
+
 PASTA_DOCS = Path("docs")
 PASTA_CHUNKS = Path("data/chunks")
 PROPOSTAS = Path("data/regras_propostas.jsonl")
@@ -107,6 +112,69 @@ def regras() -> None:
     print(f"{len(_ler_jsonl(APROVADAS))} aprovada(s) em {APROVADAS}")
 
 
+def _campos_de_regra_extraida(registro: dict) -> dict:
+    return {campo: registro[campo] for campo in RegraExtraida.model_fields}
+
+
+def _carregar_textos_de_chunks() -> dict[str, str]:
+    textos: dict[str, str] = {}
+    if not PASTA_CHUNKS.exists():
+        return textos
+    for arquivo in PASTA_CHUNKS.glob("*.jsonl"):
+        for registro in _ler_jsonl(arquivo):
+            textos[registro["chunk_id"]] = registro["texto"]
+    return textos
+
+
+def reclassificar() -> None:
+    """Reaplica classificar() sobre as regras ja propostas, sem chamar o
+    modelo -- reverifica trecho_confere, extremos_citados e valor_plausivel
+    contra o chunk de origem que ja esta em disco. Util para propagar uma
+    mudanca na logica de validacao (ex.: um novo check) sem repetir os ~140s
+    por chunk da etapa 04.
+    """
+    propostas = _ler_jsonl(PROPOSTAS)
+    if not propostas:
+        print("nenhuma regra proposta ainda. rode: just extrair-regras")
+        return
+
+    contagem_antes = dict(_contar(propostas, "status"))
+    textos_por_chunk = _carregar_textos_de_chunks()
+
+    nao_verificaveis = 0
+    for proposta in propostas:
+        texto_chunk = textos_por_chunk.get(proposta["chunk_id"])
+        if texto_chunk is None:
+            proposta["status"] = "suspeito"
+            proposta["motivo_suspeita"] = (
+                f"chunk {proposta['chunk_id']} nao encontrado em {PASTA_CHUNKS}/, "
+                "regra nao pode ser reverificada"
+            )
+            nao_verificaveis += 1
+            continue
+
+        regra_extraida = RegraExtraida(**_campos_de_regra_extraida(proposta))
+        status, motivo = classificar(regra_extraida, texto_chunk)
+        proposta["status"] = status
+        proposta["motivo_suspeita"] = motivo
+
+    with PROPOSTAS.open("w", encoding="utf-8") as arquivo:
+        for proposta in propostas:
+            arquivo.write(json.dumps(proposta, ensure_ascii=False) + "\n")
+
+    contagem_depois = dict(_contar(propostas, "status"))
+
+    print(f"{len(propostas)} regra(s) reclassificadas")
+    print("antes:")
+    for status_nome, quantidade in sorted(contagem_antes.items()):
+        print(f"  status {status_nome:10} {quantidade}")
+    print("depois:")
+    for status_nome, quantidade in sorted(contagem_depois.items()):
+        print(f"  status {status_nome:10} {quantidade}")
+    if nao_verificaveis:
+        print(f"\n{nao_verificaveis} regra(s) sem chunk de origem, marcada(s) suspeito por nao poder reverificar")
+
+
 def omissoes() -> None:
     itens = _ler_jsonl(OMISSOES)
     print(f"{len(itens)} chunk(s) com padrao de limiar e zero regras extraidas")
@@ -191,6 +259,7 @@ COMANDOS = {
     "docs": docs,
     "chunks": chunks,
     "regras": regras,
+    "reclassificar": reclassificar,
     "omissoes": omissoes,
     "manifesto": manifesto,
     "artefatos": artefatos,

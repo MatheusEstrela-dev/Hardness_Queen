@@ -1,6 +1,7 @@
 from ingestao.contrato import RegraExtraida
 from ingestao.validacao import (
     classificar,
+    extremos_citados,
     normalizar,
     suspeito_de_omissao,
     trecho_confere,
@@ -194,3 +195,79 @@ def test_chunk_com_limiar_de_refletividade_e_suspeito_de_omissao():
 
 def test_chunk_com_limiar_de_temperatura_e_suspeito_de_omissao():
     assert suspeito_de_omissao("temperatura de topo de nuvem de -50 C", 0)
+
+
+def test_extremos_citados_aceita_ambos_os_extremos_presentes():
+    assert extremos_citados(6.0, 30.0, "podendo variar entre 6 mm e 30 mm em uma hora")
+
+
+def test_extremos_citados_aceita_separador_decimal_por_virgula():
+    assert extremos_citados(31.5, None, "cota atinge 31,5 m na regua")
+
+
+def test_extremos_citados_compara_numericamente_nao_como_string():
+    assert extremos_citados(90.0, None, "vento acima de 90 km/h")
+
+
+def test_extremos_citados_recusa_trecho_sem_nenhum_digito():
+    assert not extremos_citados(
+        26.0,
+        50.0,
+        "Situacao de Perigo, a severidade e alta. Representando uma "
+        "significante ameaca a vida ou a propriedade.",
+    )
+
+
+def test_extremos_citados_recusa_trecho_com_apenas_um_dos_extremos():
+    assert not extremos_citados(6.0, 30.0, "podendo variar a partir de 6 mm em uma hora")
+
+
+def test_extremos_citados_aceita_minimo_nulo_com_maximo_presente():
+    assert extremos_citados(None, 6.0, "chuva fraca: ate 6 mm/h")
+
+
+def test_classificar_marca_extremos_nao_citados_mesmo_com_trecho_real():
+    # regressao: a fabricacao real do documento -- faixa plausivel, trecho
+    # genuino do chunk, mas sem nenhum dos numeros da faixa.
+    chunk = (
+        "Situacao de Perigo, a severidade e alta. Representando uma "
+        "significante ameaca a vida ou a propriedade."
+    )
+    regra = _regra(
+        grandeza="chuva_acumulada",
+        unidade="mm",
+        valor_min=26.0,
+        valor_max=50.0,
+        fonte_trecho=chunk,
+    )
+
+    status, motivo = classificar(regra, chunk)
+
+    assert status == "suspeito"
+    assert "valor_min" in motivo
+
+
+def test_classificar_aceita_regra_genuina_com_extremos_citados():
+    chunk = "risco de alagamento podendo variar entre 6 mm e 30 mm em uma hora"
+    regra = _regra(
+        grandeza="chuva_acumulada",
+        unidade="mm",
+        valor_min=6.0,
+        valor_max=30.0,
+        fonte_trecho="podendo variar entre 6 mm e 30 mm em uma hora",
+    )
+
+    assert classificar(regra, chunk) == ("ok", None)
+
+
+def test_classificar_prioriza_trecho_confere_sobre_extremos_citados():
+    # trecho nao existe no chunk E os extremos nao aparecem no trecho
+    # citado -- a falha de existencia do trecho e a mais fundamental e deve
+    # ser reportada primeiro.
+    status, motivo = classificar(
+        _regra(valor_min=26.0, valor_max=50.0, fonte_trecho="trecho que o modelo inventou, sem numero algum"),
+        "chunk real que nao contem essa citacao de jeito nenhum",
+    )
+
+    assert status == "suspeito"
+    assert "trecho" in motivo

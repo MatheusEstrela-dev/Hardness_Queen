@@ -49,6 +49,43 @@ def trecho_confere(trecho: str, texto_chunk: str) -> bool:
     return normalizar(trecho) in normalizar(texto_chunk)
 
 
+# Numero solto, com separador decimal opcional em ponto ou virgula --
+# documentos brasileiros escrevem os dois indiferentemente ("31,5" e
+# "31.5"). Sem sinal: a citacao de um limiar de alerta nao depende de
+# reconhecer negativo aqui, e mistura mal com hifen de intervalo ("26-50").
+_PADRAO_DE_NUMERO = re.compile(r"\d+(?:[.,]\d+)?")
+
+_TOLERANCIA_NUMERICA = 1e-9
+
+
+def _numeros_do_trecho(trecho: str) -> list[float]:
+    return [float(bruto.replace(",", ".")) for bruto in _PADRAO_DE_NUMERO.findall(trecho)]
+
+
+def extremos_citados(valor_min: float | None, valor_max: float | None, trecho: str) -> bool:
+    numeros = _numeros_do_trecho(trecho)
+    for extremo in (valor_min, valor_max):
+        if extremo is None:
+            continue
+        if not any(abs(extremo - numero) < _TOLERANCIA_NUMERICA for numero in numeros):
+            return False
+    return True
+
+
+def _motivo_de_extremo_nao_citado(
+    valor_min: float | None,
+    valor_max: float | None,
+    trecho: str,
+) -> str:
+    numeros = _numeros_do_trecho(trecho)
+    for nome, extremo in (("valor_min", valor_min), ("valor_max", valor_max)):
+        if extremo is None:
+            continue
+        if not any(abs(extremo - numero) < _TOLERANCIA_NUMERICA for numero in numeros):
+            return f"{nome} {extremo} nao aparece como numero no trecho citado"
+    return "extremo nao aparece como numero no trecho citado"
+
+
 def valor_plausivel(
     grandeza: str,
     unidade: str,
@@ -88,8 +125,21 @@ def _motivo_de_implausibilidade(
 
 
 def classificar(regra: RegraExtraida, texto_chunk: str) -> tuple[str, str | None]:
+    # A ordem das tres checagens importa: cada uma e mais barata e mais
+    # fundamental que a seguinte, e a primeira a falhar e a mensagem mais
+    # util para o revisor.
+    # 1) o trecho citado existe no chunk? Um trecho que o modelo inventou
+    #    de saida torna as outras duas checagens sem sentido.
     if not trecho_confere(regra.fonte_trecho, texto_chunk):
         return "suspeito", "trecho citado nao encontrado no chunk de origem"
+    # 2) os numeros da faixa aparecem nesse trecho? Um trecho real do chunk
+    #    mas que nao contem os proprios numeros da regra nao sustenta a
+    #    regra, seja o valor plausivel ou nao -- essa e a fabricacao que
+    #    passava despercebida antes desta checagem existir.
+    if not extremos_citados(regra.valor_min, regra.valor_max, regra.fonte_trecho):
+        motivo = _motivo_de_extremo_nao_citado(regra.valor_min, regra.valor_max, regra.fonte_trecho)
+        return "suspeito", motivo
+    # 3) o valor e fisicamente sensato para a grandeza e unidade?
     if not valor_plausivel(regra.grandeza, regra.unidade, regra.valor_min, regra.valor_max):
         motivo = _motivo_de_implausibilidade(regra.grandeza, regra.unidade, regra.valor_min, regra.valor_max)
         return "suspeito", motivo
