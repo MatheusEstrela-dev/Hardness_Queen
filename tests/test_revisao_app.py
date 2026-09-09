@@ -17,6 +17,7 @@ def _regra(regra_id: str, valor_min: float | None = 100.0, valor_max: float | No
         "grandeza": "chuva_acumulada",
         "janela_horas": 72,
         "unidade": "mm",
+        "escala": "alerta_cor",
         "nivel": "roxo",
         "valor_min": valor_min,
         "valor_max": valor_max,
@@ -165,3 +166,11 @@ def test_pagina_mostra_fonte_secao_na_grade_de_campos(ambiente):
     resposta = cliente.get("/")
 
     assert "fonte_secao" in resposta.text
+
+
+def test_pagina_mostra_escala_na_grade_de_campos(ambiente):
+    cliente, _, _ = ambiente
+
+    resposta = cliente.get("/")
+
+    assert "escala" in resposta.text

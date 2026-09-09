@@ -47,6 +47,7 @@ valor_min=X e valor_max=Y; "acima de X" preenche so valor_min.
 Niveis por cor: verde, amarelo, laranja, vermelho, roxo (menos para mais grave).
 Limiar valido para todo o estado usa entidade_tipo="estado" e
 entidade_nome="minas gerais", em vez de inventar entidade que o texto nao nomeia.
+escala="alerta_cor" vai com os niveis por cor; escala="intensidade" vai com fraca, moderada, forte, muito_forte, extremo; taxa em mm/h e grandeza="taxa_precipitacao", nao chuva_acumulada.
 """
 
 
@@ -69,6 +70,7 @@ def extrair_do_chunk(chunk: Chunk, gerar: Callable[[str], str]) -> list[Regra]:
                     extraida.entidade_tipo,
                     extraida.entidade_nome,
                     extraida.grandeza,
+                    extraida.escala,
                     extraida.nivel,
                     extraida.valor_min,
                     extraida.valor_max,

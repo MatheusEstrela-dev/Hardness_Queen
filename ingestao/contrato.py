@@ -12,14 +12,38 @@ Grandeza = Literal[
     "vil",
     "refletividade",
     "temperatura_topo",
+    "taxa_precipitacao",
 ]
-Unidade = Literal["mm", "m", "m3/s", "km/h", "kg/m2", "dBZ", "celsius"]
+Unidade = Literal["mm", "m", "m3/s", "km/h", "kg/m2", "dBZ", "celsius", "mm/h"]
 
-# Escala normativa de MG (POP_ENVIO_DE_ALERTA_HIDROMETEOROLOGICO N 6.1.3/2025,
-# secao 6.2), cinco niveis nomeados por cor. Limiar vindo de outra fonte (ex.:
-# INMET, que usa perigo potencial / perigo / grande perigo) e mapeado para a
-# cor equivalente na extracao; fonte_trecho preserva o texto original.
-Nivel = Literal["verde", "amarelo", "laranja", "vermelho", "roxo"]
+# Duas escalas de classificacao coexistem no acervo, e nao sao a mesma coisa:
+#
+# - alerta_cor: escala normativa de MG (POP_ENVIO_DE_ALERTA_HIDROMETEOROLOGICO
+#   N 6.1.3/2025, secao 6.2), cinco niveis nomeados por cor sobre chuva
+#   acumulada (mm). Limiar vindo de outra fonte (ex.: INMET, que usa perigo
+#   potencial / perigo / grande perigo) e mapeado para a cor equivalente na
+#   extracao; fonte_trecho preserva o texto original.
+# - intensidade: classifica a taxa de precipitacao (mm/h) em si -- quao forte
+#   esta chovendo --, nao a resposta operacional a esse tanto de chuva. Vem de
+#   tabelas como a de PROTOCOLO_ALERTAS_METEORO.docx (Fraca/Moderada/Forte/
+#   Muito Forte/Extremo).
+#
+# As duas escalas sao relacionadas -- o POP deriva as cores dos patamares de
+# acumulado -- mas misturar os niveis de uma na outra (ex.: rotular "Moderada"
+# como uma cor) reproduziria o erro ja corrigido neste projeto em que um
+# limiar estadual de chuva foi rotulado entidade_tipo=tipo_solo por falta de
+# opcao melhor no vocabulario.
+Escala = Literal["alerta_cor", "intensidade"]
+
+NIVEIS_ALERTA_COR: frozenset[str] = frozenset({"verde", "amarelo", "laranja", "vermelho", "roxo"})
+NIVEIS_INTENSIDADE: frozenset[str] = frozenset({"fraca", "moderada", "forte", "muito_forte", "extremo"})
+
+NIVEIS_POR_ESCALA: dict[str, frozenset[str]] = {
+    "alerta_cor": NIVEIS_ALERTA_COR,
+    "intensidade": NIVEIS_INTENSIDADE,
+}
+
+Nivel = Literal["verde", "amarelo", "laranja", "vermelho", "roxo", "fraca", "moderada", "forte", "muito_forte", "extremo"]
 Status = Literal["ok", "suspeito"]
 Veredito = Literal["aprovado", "rejeitado", "corrigido"]
 
@@ -46,6 +70,7 @@ class RegraExtraida(BaseModel):
     grandeza: Grandeza
     janela_horas: int | None
     unidade: Unidade
+    escala: Escala
     nivel: Nivel
     valor_min: float | None
     valor_max: float | None
@@ -75,6 +100,16 @@ class RegraExtraida(BaseModel):
     def _exige_pelo_menos_um_extremo(self) -> "RegraExtraida":
         if self.valor_min is None and self.valor_max is None:
             raise ValueError("regra precisa de valor_min ou valor_max preenchido")
+        return self
+
+    @model_validator(mode="after")
+    def _nivel_pertence_a_escala(self) -> "RegraExtraida":
+        # O ponto inteiro do campo escala e este validador -- sem ele, as
+        # duas escalas voltam a se misturar, so que agora com uma coluna a
+        # mais para dar falsa sensacao de que estao separadas.
+        permitidos = NIVEIS_POR_ESCALA[self.escala]
+        if self.nivel not in permitidos:
+            raise ValueError(f"nivel {self.nivel!r} nao pertence a escala {self.escala!r}")
         return self
 
 

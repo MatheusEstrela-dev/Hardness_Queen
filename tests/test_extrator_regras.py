@@ -30,6 +30,9 @@ def _uma_regra(
     valor_max: float | None = None,
     trecho: str = "saturacao ocorre a partir de 100mm em 72h",
     nivel: str = "roxo",
+    escala: str = "alerta_cor",
+    grandeza: str = "chuva_acumulada",
+    unidade: str = "mm",
 ) -> dict:
     return {
         "regras": [
@@ -37,9 +40,10 @@ def _uma_regra(
                 "dominio": "geologia",
                 "entidade_tipo": "tipo_solo",
                 "entidade_nome": "gnaisse",
-                "grandeza": "chuva_acumulada",
+                "grandeza": grandeza,
                 "janela_horas": 72,
-                "unidade": "mm",
+                "unidade": unidade,
+                "escala": escala,
                 "nivel": nivel,
                 "valor_min": valor_min,
                 "valor_max": valor_max,
@@ -67,6 +71,13 @@ def test_instrucao_orienta_a_nao_quebrar_faixa_em_duas_regras():
 
 def test_instrucao_orienta_entidade_estado_para_limiar_sem_entidade_propria():
     assert "minas gerais" in INSTRUCAO
+
+
+def test_instrucao_orienta_a_distincao_entre_escala_de_cor_e_de_intensidade():
+    assert "alerta_cor" in INSTRUCAO
+    assert "intensidade" in INSTRUCAO
+    assert "taxa_precipitacao" in INSTRUCAO
+    assert "mm/h" in INSTRUCAO
 
 
 def test_texto_do_chunk_vem_antes_da_instrucao_no_prompt():

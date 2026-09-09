@@ -11,16 +11,32 @@ FAIXAS_PLAUSIVEIS: dict[tuple[str, str], tuple[float, float]] = {
     ("vil", "kg/m2"): (0.1, 100.0),
     ("refletividade", "dBZ"): (5.0, 80.0),
     ("temperatura_topo", "celsius"): (-90.0, 40.0),
+    # A propria tabela de intensidade (PROTOCOLO_ALERTAS_METEORO.docx) usa
+    # "> 90mm/h" como classe mais severa (Extremo). O maximo fisico plausivel
+    # vem de registro historico, nao de intuicao: o recorde mundial de chuva
+    # acumulada em 1 hora e de 401,7 mm (Foc-Foc, La Reuniao, 1966, OMM) --
+    # 400.0 arredonda isso com folga de "alguns poucos" mm, sem abrir espaco
+    # para um valor de ordem de grandeza maior (ex.: erro de OCR ou
+    # alucinacao do modelo emitindo milhares de mm/h) passar como plausivel.
+    # O minimo de 0.1 mm/h e o piso de chuvisco mensuravel, na mesma ordem de
+    # grandeza do minimo ja usado para vil (0.1 kg/m2) e cota (0.1 m).
+    ("taxa_precipitacao", "mm/h"): (0.1, 400.0),
 }
 
-# Unidades multi-caractere (mm, m3/s, km/h, kg/m2, dbz, celsius) precisam vir
-# antes de "m\b" e "h\b" na alternancia: "m\b" e "h\b" exigem fronteira de
-# palavra logo apos a letra, entao sozinhos nao casam dentro de "mm" (m
-# seguido de m, sem fronteira) nem de "km/h" (m seguido de /, que tem
+# Unidades multi-caractere (mm/h, mm, m3/s, km/h, kg/m2, dbz, celsius)
+# precisam vir antes de "m\b" e "h\b" na alternancia: "m\b" e "h\b" exigem
+# fronteira de palavra logo apos a letra, entao sozinhos nao casam dentro de
+# "mm" (m seguido de m, sem fronteira) nem de "km/h" (m seguido de /, que tem
 # fronteira, mas so e alcancado se nada antes tiver casado -- por isso a
 # ordem "km/h" antes de "m\b" evita depender so da fronteira de palavra).
+# "mm/h" precisa vir antes de "mm" pelo mesmo motivo -- "mm" e prefixo literal
+# de "mm/h", entao sem essa ordem a alternancia sempre resolveria em "mm" e
+# nunca chegaria a testar "mm/h" (o "/h" sobrando nao muda o resultado deste
+# regex, que so verifica presenca de limiar para fins de recall, mas deixar
+# "mm/h" implicito nesse acidente de prefixo tornaria o reconhecimento fragil
+# a qualquer reordenacao futura da alternancia).
 _PADRAO_DE_LIMIAR = re.compile(
-    r"\d+(?:[.,]\d+)?\s*(?:mm|m3/s|km/h|kg/m2|dbz|celsius|°c|m\b|h\b|c\b)",
+    r"\d+(?:[.,]\d+)?\s*(?:mm/h|mm|m3/s|km/h|kg/m2|dbz|celsius|°c|m\b|h\b|c\b)",
     re.IGNORECASE,
 )
 

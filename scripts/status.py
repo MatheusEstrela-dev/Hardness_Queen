@@ -92,6 +92,8 @@ def regras() -> None:
         print(f"  status {status:10} {quantidade}")
     for dominio, quantidade in _contar(propostas, "dominio"):
         print(f"  dominio {dominio:14} {quantidade}")
+    for escala, quantidade in _contar(propostas, "escala"):
+        print(f"  escala {escala:14} {quantidade}")
     for nivel, quantidade in _contar(propostas, "nivel"):
         print(f"  nivel {nivel:14} {quantidade}")
 

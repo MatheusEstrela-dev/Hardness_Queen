@@ -12,6 +12,7 @@ def _regra_valida(**sobrescritas) -> dict:
         "grandeza": "chuva_acumulada",
         "janela_horas": 72,
         "unidade": "mm",
+        "escala": "alerta_cor",
         "nivel": "roxo",
         "valor_min": 100.0,
         "valor_max": None,
@@ -50,6 +51,61 @@ def test_regra_extraida_rejeita_nivel_fora_da_escala_de_cinco_cores():
 
     with pytest.raises(ValidationError):
         RegraExtraida(**payload)
+
+
+def test_regra_extraida_aceita_nivel_de_cor_com_escala_alerta_cor():
+    regra = RegraExtraida(**_regra_valida(escala="alerta_cor", nivel="roxo"))
+
+    assert regra.escala == "alerta_cor"
+    assert regra.nivel == "roxo"
+
+
+def test_regra_extraida_rejeita_nivel_de_intensidade_com_escala_alerta_cor():
+    payload = _regra_valida(escala="alerta_cor", nivel="moderada")
+
+    with pytest.raises(ValidationError):
+        RegraExtraida(**payload)
+
+
+def test_regra_extraida_aceita_nivel_de_intensidade_com_escala_intensidade():
+    payload = _regra_valida(
+        escala="intensidade",
+        nivel="moderada",
+        grandeza="taxa_precipitacao",
+        unidade="mm/h",
+        valor_min=6.0,
+        valor_max=30.0,
+        fonte_trecho="moderada 6 mm/h a 30 mm/h",
+    )
+
+    regra = RegraExtraida(**payload)
+
+    assert regra.escala == "intensidade"
+    assert regra.nivel == "moderada"
+
+
+def test_regra_extraida_rejeita_nivel_de_cor_com_escala_intensidade():
+    payload = _regra_valida(escala="intensidade", nivel="roxo")
+
+    with pytest.raises(ValidationError):
+        RegraExtraida(**payload)
+
+
+def test_regra_extraida_aceita_grandeza_taxa_precipitacao_e_unidade_mm_h():
+    payload = _regra_valida(
+        escala="intensidade",
+        nivel="extremo",
+        grandeza="taxa_precipitacao",
+        unidade="mm/h",
+        valor_min=90.0,
+        valor_max=None,
+        fonte_trecho="extremo acima de 90mm/h",
+    )
+
+    regra = RegraExtraida(**payload)
+
+    assert regra.grandeza == "taxa_precipitacao"
+    assert regra.unidade == "mm/h"
 
 
 def test_janela_horas_pode_ser_nula():

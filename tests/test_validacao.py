@@ -17,6 +17,7 @@ def _regra(**sobrescritas) -> RegraExtraida:
         "grandeza": "chuva_acumulada",
         "janela_horas": 72,
         "unidade": "mm",
+        "escala": "alerta_cor",
         "nivel": "roxo",
         "valor_min": 100.0,
         "valor_max": None,
@@ -126,6 +127,54 @@ def test_valor_plausivel_aceita_refletividade_em_dbz():
 
 def test_valor_plausivel_aceita_temperatura_topo_negativa():
     assert valor_plausivel("temperatura_topo", "celsius", None, -50.0)
+
+
+def test_valor_plausivel_aceita_taxa_de_precipitacao_da_tabela_de_intensidade():
+    # faixa "Moderada" de PROTOCOLO_ALERTAS_METEORO.docx: 6 mm/h a 30 mm/h.
+    assert valor_plausivel("taxa_precipitacao", "mm/h", 6.0, 30.0)
+
+
+def test_valor_implausivel_de_taxa_de_precipitacao_e_recusado():
+    # nenhuma chuva sustentada real chega a milhares de mm/h -- o recorde
+    # mundial de acumulado em 1h fica perto de 400 mm (La Reuniao, 1966).
+    assert not valor_plausivel("taxa_precipitacao", "mm/h", 5000.0, None)
+
+
+def test_classificar_marca_taxa_de_precipitacao_implausivel_como_suspeito():
+    chunk = "extremo acima de 9000mm/h"
+    regra = _regra(
+        grandeza="taxa_precipitacao",
+        unidade="mm/h",
+        escala="intensidade",
+        nivel="extremo",
+        valor_min=9000.0,
+        valor_max=None,
+        fonte_trecho=chunk,
+    )
+
+    status, motivo = classificar(regra, chunk)
+
+    assert status == "suspeito"
+    assert "valor_min" in motivo
+
+
+def test_classificar_aceita_regra_de_taxa_de_precipitacao_genuina():
+    chunk = "Moderada 6 mm/h a 30 mm/h"
+    regra = _regra(
+        grandeza="taxa_precipitacao",
+        unidade="mm/h",
+        escala="intensidade",
+        nivel="moderada",
+        valor_min=6.0,
+        valor_max=30.0,
+        fonte_trecho="Moderada 6 mm/h a 30 mm/h",
+    )
+
+    assert classificar(regra, chunk) == ("ok", None)
+
+
+def test_padrao_de_limiar_reconhece_taxa_em_mm_h():
+    assert suspeito_de_omissao("Moderada 6 mm/h a 30 mm/h", 0)
 
 
 def test_classificar_regra_boa_devolve_ok():
