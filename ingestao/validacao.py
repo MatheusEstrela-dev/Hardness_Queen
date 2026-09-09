@@ -148,7 +148,7 @@ GRANDEZAS_DE_TAXA = {"taxa_precipitacao"}
 
 
 def janela_coerente_com_grandeza(grandeza: str, janela_horas: int | None) -> bool:
-    """Uma taxa nao tem janela: o "por hora" ja esta na unidade.
+    """Uma taxa nao tem janela maior que 1h: o "por hora" ja esta na unidade.
 
     Achado real: o modelo leu "60 mm em 24 horas" como taxa_precipitacao de
     60 mm/h com janela 24. Sao coisas diferentes por um fator de 24 -- 60 mm
@@ -156,9 +156,14 @@ def janela_coerente_com_grandeza(grandeza: str, janela_horas: int | None) -> boo
     taxa, a regra praticamente nunca dispara, que e o pior modo de falha num
     sistema de alerta: silencio em vez de erro visivel.
     """
-    if grandeza in GRANDEZAS_DE_TAXA:
-        return janela_horas is None
-    return True
+    if grandeza not in GRANDEZAS_DE_TAXA:
+        return True
+    # janela nula e o ideal, e janela de 1 hora e redundante mas coerente:
+    # "30 mm em uma hora" e ao mesmo tempo um acumulado de 1h e uma taxa de
+    # 30 mm/h -- numericamente a mesma coisa, e o documento escreve das duas
+    # formas. So janela diferente de 1 e contradicao real, e e ela que erra
+    # por um fator igual a propria janela.
+    return janela_horas is None or janela_horas == 1
 
 
 def faixa_nao_degenerada(valor_min: float | None, valor_max: float | None) -> bool:

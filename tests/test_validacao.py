@@ -412,3 +412,21 @@ def test_limiar_aberto_com_um_extremo_nulo_passa():
     chunk = "registro de acumulados superiores a 90 mm em 24 horas no municipio"
 
     assert classificar(regra, chunk) == ("ok", None)
+
+
+def test_taxa_com_janela_de_uma_hora_e_redundante_mas_coerente():
+    # "30 mm em uma hora" e ao mesmo tempo um acumulado de 1h e uma taxa de
+    # 30 mm/h. O documento escreve das duas formas; nao e erro.
+    regra = _regra(
+        grandeza="taxa_precipitacao",
+        unidade="mm/h",
+        janela_horas=1,
+        escala="intensidade",
+        nivel="moderada",
+        valor_min=6.0,
+        valor_max=30.0,
+        fonte_trecho="podendo variar entre 6 mm e 30 mm em uma hora",
+    )
+    chunk = "acumulados podendo variar entre 6 mm e 30 mm em uma hora"
+
+    assert classificar(regra, chunk) == ("ok", None)
