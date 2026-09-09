@@ -16,8 +16,9 @@ def _regra(**sobrescritas) -> RegraExtraida:
         "grandeza": "chuva_acumulada",
         "janela_horas": 72,
         "unidade": "mm",
-        "nivel": "critico",
-        "valor": 100.0,
+        "nivel": "roxo",
+        "valor_min": 100.0,
+        "valor_max": None,
         "fonte_trecho": "saturacao a partir de 100mm em 72h",
     }
     payload.update(sobrescritas)
@@ -41,19 +42,51 @@ def test_trecho_inventado_nao_confere():
 
 
 def test_valor_plausivel_aceita_chuva_razoavel():
-    assert valor_plausivel("chuva_acumulada", "mm", 100.0)
+    assert valor_plausivel("chuva_acumulada", "mm", 100.0, None)
 
 
 def test_valor_implausivel_de_chuva_e_recusado():
-    assert not valor_plausivel("chuva_acumulada", "mm", 90000.0)
+    assert not valor_plausivel("chuva_acumulada", "mm", 90000.0, None)
 
 
 def test_valor_plausivel_aceita_cota_de_rio():
-    assert valor_plausivel("cota", "m", 3.8)
+    assert valor_plausivel("cota", "m", 3.8, None)
 
 
 def test_combinacao_de_grandeza_e_unidade_desconhecida_e_recusada():
-    assert not valor_plausivel("cota", "mm", 3.8)
+    assert not valor_plausivel("cota", "mm", 3.8, None)
+
+
+def test_valor_plausivel_aceita_faixa_fechada_dentro_do_limite():
+    assert valor_plausivel("chuva_acumulada", "mm", 6.0, 30.0)
+
+
+def test_valor_plausivel_recusa_faixa_invertida():
+    assert not valor_plausivel("chuva_acumulada", "mm", 30.0, 6.0)
+
+
+def test_valor_plausivel_recusa_extremo_maximo_fora_da_faixa():
+    assert not valor_plausivel("chuva_acumulada", "mm", 6.0, 90000.0)
+
+
+def test_valor_plausivel_aceita_limiar_de_vento_em_kmh():
+    assert valor_plausivel("vento", "km/h", 90.0, None)
+
+
+def test_valor_plausivel_recusa_vento_absurdo():
+    assert not valor_plausivel("vento", "km/h", 5000.0, None)
+
+
+def test_valor_plausivel_aceita_vil_em_kg_m2():
+    assert valor_plausivel("vil", "kg/m2", 1.5, None)
+
+
+def test_valor_plausivel_aceita_refletividade_em_dbz():
+    assert valor_plausivel("refletividade", "dBZ", 45.0, None)
+
+
+def test_valor_plausivel_aceita_temperatura_topo_negativa():
+    assert valor_plausivel("temperatura_topo", "celsius", None, -50.0)
 
 
 def test_classificar_regra_boa_devolve_ok():
@@ -69,12 +102,32 @@ def test_classificar_marca_citacao_inventada():
     assert "trecho" in motivo
 
 
-def test_classificar_marca_valor_implausivel():
-    chunk = "saturacao a partir de 100mm em 72h"
-    status, motivo = classificar(_regra(valor=90000.0), chunk)
+def test_classificar_prioriza_trecho_sobre_faixa():
+    status, motivo = classificar(
+        _regra(valor_min=90000.0, fonte_trecho="800mm em 24h"),
+        "o limiar e de 100mm em 72h",
+    )
 
     assert status == "suspeito"
-    assert "valor" in motivo
+    assert "trecho" in motivo
+
+
+def test_classificar_marca_valor_min_implausivel():
+    chunk = "saturacao a partir de 100mm em 72h"
+    status, motivo = classificar(_regra(valor_min=90000.0), chunk)
+
+    assert status == "suspeito"
+    assert "valor_min" in motivo
+
+
+def test_classificar_marca_faixa_invertida():
+    chunk = "entre 30mm e 6mm em 1h"
+    status, motivo = classificar(
+        _regra(valor_min=30.0, valor_max=6.0, fonte_trecho="entre 30mm e 6mm em 1h"),
+        chunk,
+    )
+
+    assert status == "suspeito"
 
 
 def test_chunk_com_limiar_e_zero_regras_e_suspeito_de_omissao():
@@ -87,3 +140,19 @@ def test_chunk_sem_padrao_de_limiar_nao_e_suspeito():
 
 def test_chunk_que_produziu_regra_nao_e_suspeito_de_omissao():
     assert not suspeito_de_omissao("o acumulado critico e de 80mm em 24h", 1)
+
+
+def test_chunk_com_limiar_de_vento_e_suspeito_de_omissao():
+    assert suspeito_de_omissao("rajadas de vento acima de 90 km/h exigem alerta", 0)
+
+
+def test_chunk_com_limiar_de_vil_e_suspeito_de_omissao():
+    assert suspeito_de_omissao("VIL de 1,5 kg/m2 indica risco de granizo", 0)
+
+
+def test_chunk_com_limiar_de_refletividade_e_suspeito_de_omissao():
+    assert suspeito_de_omissao("refletividade acima de 45 dBZ", 0)
+
+
+def test_chunk_com_limiar_de_temperatura_e_suspeito_de_omissao():
+    assert suspeito_de_omissao("temperatura de topo de nuvem de -50 C", 0)

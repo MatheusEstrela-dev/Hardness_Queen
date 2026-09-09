@@ -63,6 +63,19 @@ def chunks() -> None:
     print(f"total: {total} chunks")
 
 
+def _formatar_faixa(regra: dict) -> str:
+    minimo = regra.get("valor_min")
+    maximo = regra.get("valor_max")
+    unidade = regra.get("unidade", "")
+    if minimo is not None and maximo is not None:
+        return f"{minimo} - {maximo} {unidade}"
+    if minimo is not None:
+        return f">= {minimo} {unidade}"
+    if maximo is not None:
+        return f"<= {maximo} {unidade}"
+    return "-"
+
+
 def regras() -> None:
     propostas = _ler_jsonl(PROPOSTAS)
     if not propostas:
@@ -74,12 +87,17 @@ def regras() -> None:
         print(f"  status {status:10} {quantidade}")
     for dominio, quantidade in _contar(propostas, "dominio"):
         print(f"  dominio {dominio:14} {quantidade}")
+    for nivel, quantidade in _contar(propostas, "nivel"):
+        print(f"  nivel {nivel:14} {quantidade}")
 
     suspeitas = [r for r in propostas if r["status"] == "suspeito"]
     if suspeitas:
         print(f"\nmotivos de suspeita ({len(suspeitas)}):")
         for regra in suspeitas[:10]:
-            print(f"  {regra['fonte_doc']} p{regra['fonte_pagina']}: {regra['motivo_suspeita']}")
+            print(
+                f"  {regra['fonte_doc']} p{regra['fonte_pagina']} "
+                f"[{_formatar_faixa(regra)}]: {regra['motivo_suspeita']}"
+            )
         if len(suspeitas) > 10:
             print(f"  ... e outras {len(suspeitas) - 10}")
 

@@ -1,19 +1,44 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 Dominio = Literal["geologia", "hidrologia", "meteorologia"]
-EntidadeTipo = Literal["tipo_solo", "bacia", "estacao", "municipio"]
-Grandeza = Literal["chuva_acumulada", "cota", "vazao"]
-Unidade = Literal["mm", "m", "m3/s"]
-Nivel = Literal["atencao", "critico"]
+EntidadeTipo = Literal["tipo_solo", "bacia", "estacao", "municipio", "regiao", "estado"]
+Grandeza = Literal[
+    "chuva_acumulada",
+    "cota",
+    "vazao",
+    "vento",
+    "vil",
+    "refletividade",
+    "temperatura_topo",
+]
+Unidade = Literal["mm", "m", "m3/s", "km/h", "kg/m2", "dBZ", "celsius"]
+
+# Escala normativa de MG (POP_ENVIO_DE_ALERTA_HIDROMETEOROLOGICO N 6.1.3/2025,
+# secao 6.2), cinco niveis nomeados por cor. Limiar vindo de outra fonte (ex.:
+# INMET, que usa perigo potencial / perigo / grande perigo) e mapeado para a
+# cor equivalente na extracao; fonte_trecho preserva o texto original.
+Nivel = Literal["verde", "amarelo", "laranja", "vermelho", "roxo"]
 Status = Literal["ok", "suspeito"]
 Veredito = Literal["aprovado", "rejeitado", "corrigido"]
 
 
 class RegraExtraida(BaseModel):
     """Exatamente o que o modelo produz. A procedencia de arquivo nao passa
-    pelo modelo: quem anexa e o script, a partir dos metadados do chunk."""
+    pelo modelo: quem anexa e o script, a partir dos metadados do chunk.
+
+    O limiar e uma faixa, nao um valor unico:
+    - valor_min e valor_max preenchidos: faixa fechada. "entre 6 mm e 30 mm"
+      vira valor_min=6.0, valor_max=30.0.
+    - so valor_min: limiar aberto para cima. "acima de 90 mm" e "90 mm ou
+      mais" viram valor_min=90.0, valor_max=None.
+    - so valor_max: limiar aberto para baixo.
+    - Ambos os extremos sao inclusivos. A distincao entre > e >= nao e
+      operacionalmente relevante num limiar de alerta.
+    - Pelo menos um dos dois precisa estar preenchido -- uma regra sem
+      nenhum extremo nao e um limiar.
+    """
 
     dominio: Dominio
     entidade_tipo: EntidadeTipo
@@ -22,8 +47,15 @@ class RegraExtraida(BaseModel):
     janela_horas: int | None
     unidade: Unidade
     nivel: Nivel
-    valor: float
+    valor_min: float | None
+    valor_max: float | None
     fonte_trecho: str
+
+    @model_validator(mode="after")
+    def _exige_pelo_menos_um_extremo(self) -> "RegraExtraida":
+        if self.valor_min is None and self.valor_max is None:
+            raise ValueError("regra precisa de valor_min ou valor_max preenchido")
+        return self
 
 
 class Extracao(BaseModel):
@@ -51,6 +83,7 @@ class Regra(RegraExtraida):
 class Decisao(BaseModel):
     regra_id: str
     veredito: Veredito
-    valor_corrigido: float | None = None
+    valor_min_corrigido: float | None = None
+    valor_max_corrigido: float | None = None
     revisor: str
     decidido_em: str

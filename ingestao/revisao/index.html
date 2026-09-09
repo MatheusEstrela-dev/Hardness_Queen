@@ -25,7 +25,7 @@
   <div class="acoes">
     <button onclick="decidir('aprovado')">Aprovar (A)</button>
     <button onclick="decidir('rejeitado')">Rejeitar (R)</button>
-    <button onclick="corrigir()">Corrigir valor (C)</button>
+    <button onclick="corrigir()">Corrigir faixa (C)</button>
   </div>
 </div>
 
@@ -56,14 +56,31 @@ function mostrar() {
   motivo.hidden = atual.status !== "suspeito";
   motivo.textContent = atual.motivo_suspeita || "";
 
-  const ordem = ["valor", "unidade", "entidade_nome", "nivel", "janela_horas",
-                 "dominio", "grandeza", "fonte_doc", "fonte_pagina"];
+  const ordem = ["faixa", "unidade", "entidade_nome", "nivel", "janela_horas",
+                 "dominio", "grandeza", "fonte_doc", "fonte_pagina", "fonte_secao"];
   document.getElementById("campos").innerHTML = ordem
-    .map(campo => `<div class="campo"><strong>${campo}</strong>${atual[campo] ?? "-"}</div>`)
+    .map(campo => `<div class="campo"><strong>${campo}</strong>${
+      campo === "faixa" ? formatarFaixa(atual) : (atual[campo] ?? "-")
+    }</div>`)
     .join("");
 }
 
-async function decidir(veredito, valorCorrigido) {
+function formatarFaixa(regra) {
+  const min = regra.valor_min;
+  const max = regra.valor_max;
+  if (min !== null && min !== undefined && max !== null && max !== undefined) {
+    return `${min} - ${max} ${regra.unidade}`;
+  }
+  if (min !== null && min !== undefined) {
+    return `>= ${min} ${regra.unidade}`;
+  }
+  if (max !== null && max !== undefined) {
+    return `<= ${max} ${regra.unidade}`;
+  }
+  return "-";
+}
+
+async function decidir(veredito, valorMinCorrigido, valorMaxCorrigido) {
   if (!atual) return;
   await fetch("/api/decisao", {
     method: "POST",
@@ -71,20 +88,34 @@ async function decidir(veredito, valorCorrigido) {
     body: JSON.stringify({
       regra_id: atual.regra_id,
       veredito: veredito,
-      valor_corrigido: valorCorrigido ?? null,
+      valor_min_corrigido: valorMinCorrigido ?? null,
+      valor_max_corrigido: valorMaxCorrigido ?? null,
       revisor: revisor,
     }),
   });
   mostrar();
 }
 
+function parseExtremo(entrada) {
+  const texto = entrada.trim();
+  if (texto === "") return null;
+  const numero = parseFloat(texto.replace(",", "."));
+  return Number.isNaN(numero) ? undefined : numero;
+}
+
 function corrigir() {
   if (!atual) return;
-  const entrada = prompt("Valor correto:", atual.valor);
-  if (entrada === null) return;
-  const valor = parseFloat(entrada.replace(",", "."));
-  if (Number.isNaN(valor)) return;
-  decidir("corrigido", valor);
+  const entradaMin = prompt("Minimo (vazio para sem limite):", atual.valor_min ?? "");
+  if (entradaMin === null) return;
+  const entradaMax = prompt("Maximo (vazio para sem limite):", atual.valor_max ?? "");
+  if (entradaMax === null) return;
+
+  const min = parseExtremo(entradaMin);
+  const max = parseExtremo(entradaMax);
+  if (min === undefined || max === undefined) return;
+  if (min === null && max === null) return;
+
+  decidir("corrigido", min, max);
 }
 
 document.addEventListener("keydown", evento => {

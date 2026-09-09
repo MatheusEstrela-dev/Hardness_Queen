@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from ingestao.contrato import Chunk
-from ingestao.extrator_regras import extrair_do_chunk, montar_prompt, processar
+from ingestao.extrator_regras import INSTRUCAO, extrair_do_chunk, montar_prompt, processar
 from ingestao.persistencia import ler_jsonl
 
 TEXTO = "4.2 Solo gnaisse. A saturacao ocorre a partir de 100mm em 72h."
@@ -25,7 +25,12 @@ def _gerador(payload: dict):
     return gerar
 
 
-def _uma_regra(valor: float = 100.0, trecho: str = "saturacao ocorre a partir de 100mm em 72h") -> dict:
+def _uma_regra(
+    valor_min: float | None = 100.0,
+    valor_max: float | None = None,
+    trecho: str = "saturacao ocorre a partir de 100mm em 72h",
+    nivel: str = "roxo",
+) -> dict:
     return {
         "regras": [
             {
@@ -35,8 +40,9 @@ def _uma_regra(valor: float = 100.0, trecho: str = "saturacao ocorre a partir de
                 "grandeza": "chuva_acumulada",
                 "janela_horas": 72,
                 "unidade": "mm",
-                "nivel": "critico",
-                "valor": valor,
+                "nivel": nivel,
+                "valor_min": valor_min,
+                "valor_max": valor_max,
                 "fonte_trecho": trecho,
             }
         ]
@@ -48,6 +54,19 @@ def test_prompt_contem_o_texto_e_a_secao_do_chunk():
 
     assert TEXTO in prompt
     assert "4.2 Caracterizacao do solo" in prompt
+
+
+def test_instrucao_ensina_a_escala_por_cor():
+    for cor in ("verde", "amarelo", "laranja", "vermelho", "roxo"):
+        assert cor in INSTRUCAO
+
+
+def test_instrucao_orienta_a_nao_quebrar_faixa_em_duas_regras():
+    assert "UMA regra" in INSTRUCAO
+
+
+def test_instrucao_orienta_entidade_estado_para_limiar_sem_entidade_propria():
+    assert "minas gerais" in INSTRUCAO
 
 
 def test_extrair_anexa_procedencia_que_nao_veio_do_modelo():
@@ -66,6 +85,19 @@ def test_regra_boa_recebe_status_ok():
     assert regras[0].status == "ok"
 
 
+def test_faixa_fechada_e_extraida_como_uma_unica_regra():
+    payload = _uma_regra(
+        valor_min=6.0,
+        valor_max=30.0,
+        trecho="saturacao ocorre a partir de 100mm em 72h",
+    )
+    regras = extrair_do_chunk(_chunk(), _gerador(payload))
+
+    assert len(regras) == 1
+    assert regras[0].valor_min == 6.0
+    assert regras[0].valor_max == 30.0
+
+
 def test_citacao_inventada_recebe_status_suspeito():
     regras = extrair_do_chunk(_chunk(), _gerador(_uma_regra(trecho="800mm em 24h")))
 
@@ -74,7 +106,18 @@ def test_citacao_inventada_recebe_status_suspeito():
 
 
 def test_valor_implausivel_recebe_status_suspeito():
-    payload = _uma_regra(valor=90000.0, trecho="saturacao ocorre a partir de 100mm em 72h")
+    payload = _uma_regra(valor_min=90000.0, trecho="saturacao ocorre a partir de 100mm em 72h")
+    regras = extrair_do_chunk(_chunk(), _gerador(payload))
+
+    assert regras[0].status == "suspeito"
+
+
+def test_faixa_invertida_recebe_status_suspeito():
+    payload = _uma_regra(
+        valor_min=100.0,
+        valor_max=1.0,
+        trecho="saturacao ocorre a partir de 100mm em 72h",
+    )
     regras = extrair_do_chunk(_chunk(), _gerador(payload))
 
     assert regras[0].status == "suspeito"
@@ -89,6 +132,13 @@ def test_regra_id_e_estavel_entre_execucoes():
     segunda = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
 
     assert primeira[0].regra_id == segunda[0].regra_id
+
+
+def test_regra_id_muda_quando_extremo_da_faixa_muda():
+    original = extrair_do_chunk(_chunk(), _gerador(_uma_regra(valor_min=100.0)))
+    alterada = extrair_do_chunk(_chunk("c2"), _gerador(_uma_regra(valor_min=90.0)))
+
+    assert original[0].regra_id != alterada[0].regra_id
 
 
 def test_processar_grava_regras_e_conta(tmp_path: Path):

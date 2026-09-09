@@ -14,7 +14,8 @@ PAGINA = Path(__file__).parent / "index.html"
 class PedidoDeDecisao(BaseModel):
     regra_id: str
     veredito: Veredito
-    valor_corrigido: float | None = None
+    valor_min_corrigido: float | None = None
+    valor_max_corrigido: float | None = None
     revisor: str
 
 
@@ -33,9 +34,14 @@ def criar_app(propostas: Path, decisoes: Path, aprovadas: Path) -> FastAPI:
             regra = dict(por_id.get(decisao["regra_id"], {}))
             if not regra:
                 continue
-            if decisao["veredito"] == "corrigido" and decisao.get("valor_corrigido") is not None:
-                regra["valor_original"] = regra["valor"]
-                regra["valor"] = decisao["valor_corrigido"]
+            if decisao["veredito"] == "corrigido" and (
+                decisao.get("valor_min_corrigido") is not None
+                or decisao.get("valor_max_corrigido") is not None
+            ):
+                regra["valor_min_original"] = regra["valor_min"]
+                regra["valor_max_original"] = regra["valor_max"]
+                regra["valor_min"] = decisao.get("valor_min_corrigido")
+                regra["valor_max"] = decisao.get("valor_max_corrigido")
             regra["revisado_por"] = decisao["revisor"]
             regra["revisado_em"] = decisao["decidido_em"]
             saida.append(regra)
@@ -64,7 +70,8 @@ def criar_app(propostas: Path, decisoes: Path, aprovadas: Path) -> FastAPI:
         decisao = Decisao(
             regra_id=pedido.regra_id,
             veredito=pedido.veredito,
-            valor_corrigido=pedido.valor_corrigido,
+            valor_min_corrigido=pedido.valor_min_corrigido,
+            valor_max_corrigido=pedido.valor_max_corrigido,
             revisor=pedido.revisor,
             decidido_em=datetime.now(timezone.utc).isoformat(),
         )

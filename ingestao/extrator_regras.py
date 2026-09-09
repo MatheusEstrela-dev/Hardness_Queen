@@ -28,6 +28,23 @@ sustenta o numero, sem reescrever nem resumir.
 Se o trecho nao fixa limiar algum, devolva a lista vazia. Nao invente limiar que
 nao esteja escrito, e nao converta unidade.
 
+ESCALA POR COR: o nivel de alerta usa cinco cores, da menos para a mais grave:
+verde (sem risco), amarelo (atencao), laranja (alerta), vermelho (perigo),
+roxo (critica). Mapeie a nomenclatura do documento para a cor equivalente --
+por exemplo "Situacao de Alerta" vira laranja, "perigo potencial" (INMET) vira
+amarelo ou laranja conforme o texto. Nunca invente um nivel fora dessas cinco.
+
+FAIXA: valor_min e valor_max descrevem o limiar, nao um valor unico.
+- "entre X e Y" preenche os dois: valor_min=X, valor_max=Y.
+- "acima de X" e "X ou mais" preenchem so valor_min=X (valor_max fica vazio).
+- um valor unico sem qualificador tambem vai em valor_min.
+- uma faixa como "entre 6mm e 30mm" e UMA regra so, com os dois extremos. Nao
+  quebre a faixa em duas regras separadas -- esse e um erro que ja aconteceu.
+
+ENTIDADE: quando o limiar vale para todo o estado ou uma regiao sem nome
+proprio, use entidade_tipo="estado" com entidade_nome="minas gerais", em vez
+de inventar uma entidade que o texto nao nomeia.
+
 Secao: {secao}
 
 Trecho:
@@ -55,7 +72,8 @@ def extrair_do_chunk(chunk: Chunk, gerar: Callable[[str], str]) -> list[Regra]:
                     extraida.entidade_nome,
                     extraida.grandeza,
                     extraida.nivel,
-                    extraida.valor,
+                    extraida.valor_min,
+                    extraida.valor_max,
                 ),
                 chunk_id=chunk.chunk_id,
                 fonte_doc=chunk.doc,

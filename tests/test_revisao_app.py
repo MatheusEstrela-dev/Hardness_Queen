@@ -7,7 +7,7 @@ from ingestao.persistencia import escrever_jsonl, ler_jsonl
 from ingestao.revisao.app import criar_app
 
 
-def _regra(regra_id: str, valor: float = 100.0) -> dict:
+def _regra(regra_id: str, valor_min: float | None = 100.0, valor_max: float | None = None) -> dict:
     return {
         "regra_id": regra_id,
         "chunk_id": "c1",
@@ -17,8 +17,9 @@ def _regra(regra_id: str, valor: float = 100.0) -> dict:
         "grandeza": "chuva_acumulada",
         "janela_horas": 72,
         "unidade": "mm",
-        "nivel": "critico",
-        "valor": valor,
+        "nivel": "roxo",
+        "valor_min": valor_min,
+        "valor_max": valor_max,
         "fonte_trecho": "saturacao a partir de 100mm em 72h",
         "fonte_doc": "laudo.pdf",
         "fonte_pagina": 12,
@@ -87,17 +88,44 @@ def test_rejeitada_nao_entra_nas_aprovadas(ambiente):
     assert ler_jsonl(aprovadas) == []
 
 
-def test_correcao_do_valor_entra_nas_aprovadas_com_o_valor_novo(ambiente):
+def test_correcao_da_faixa_entra_nas_aprovadas_com_os_extremos_novos(ambiente):
     cliente, _, aprovadas = ambiente
 
     cliente.post(
         "/api/decisao",
-        json={"regra_id": "r1", "veredito": "corrigido", "valor_corrigido": 90.0, "revisor": "matheus"},
+        json={
+            "regra_id": "r1",
+            "veredito": "corrigido",
+            "valor_min_corrigido": 6.0,
+            "valor_max_corrigido": 30.0,
+            "revisor": "matheus",
+        },
     )
 
     aprovada = ler_jsonl(aprovadas)[0]
-    assert aprovada["valor"] == 90.0
-    assert aprovada["valor_original"] == 100.0
+    assert aprovada["valor_min"] == 6.0
+    assert aprovada["valor_max"] == 30.0
+    assert aprovada["valor_min_original"] == 100.0
+    assert aprovada["valor_max_original"] is None
+
+
+def test_correcao_pode_deixar_um_extremo_sem_limite(ambiente):
+    cliente, _, aprovadas = ambiente
+
+    cliente.post(
+        "/api/decisao",
+        json={
+            "regra_id": "r1",
+            "veredito": "corrigido",
+            "valor_min_corrigido": 90.0,
+            "valor_max_corrigido": None,
+            "revisor": "matheus",
+        },
+    )
+
+    aprovada = ler_jsonl(aprovadas)[0]
+    assert aprovada["valor_min"] == 90.0
+    assert aprovada["valor_max"] is None
 
 
 def test_decisao_para_regra_inexistente_devolve_404(ambiente):
@@ -129,3 +157,11 @@ def test_pagina_de_revisao_responde(ambiente):
 
     assert resposta.status_code == 200
     assert "text/html" in resposta.headers["content-type"]
+
+
+def test_pagina_mostra_fonte_secao_na_grade_de_campos(ambiente):
+    cliente, _, _ = ambiente
+
+    resposta = cliente.get("/")
+
+    assert "fonte_secao" in resposta.text

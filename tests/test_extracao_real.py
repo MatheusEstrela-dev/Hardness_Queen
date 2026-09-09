@@ -34,7 +34,8 @@ def test_modelo_real_extrai_os_dois_limiares_do_trecho():
     print(f"\ntempo por chunk: {decorrido:.1f}s | VRAM pico: {pico_gb:.2f}GB | regras: {len(regras)}")
 
     assert len(regras) == 2
-    valores = sorted(regra.valor for regra in regras)
+    valores = sorted(regra.valor_min for regra in regras)
     assert valores == [80.0, 100.0]
+    assert all(regra.valor_max is None for regra in regras)
     assert all(regra.status == "ok" for regra in regras)
     assert pico_gb < 8.0
