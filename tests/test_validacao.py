@@ -164,6 +164,9 @@ def test_classificar_aceita_regra_de_taxa_de_precipitacao_genuina():
     regra = _regra(
         grandeza="taxa_precipitacao",
         unidade="mm/h",
+        # Uma taxa nao tem janela: o "por hora" ja esta na unidade. A fixture
+        # padrao usa 72, herdado de um exemplo de chuva acumulada.
+        janela_horas=None,
         escala="intensidade",
         nivel="moderada",
         valor_min=6.0,
@@ -342,3 +345,70 @@ def test_classificar_prioriza_trecho_confere_sobre_extremos_citados():
 
     assert status == "suspeito"
     assert "trecho" in motivo
+
+
+def test_taxa_com_janela_e_suspeita():
+    # Achado real: "60 mm em 24 horas" virou taxa_precipitacao de 60 mm/h com
+    # janela 24. Sao coisas diferentes por um fator de 24, e codificada como
+    # taxa a regra praticamente nunca dispara.
+    regra = _regra(
+        grandeza="taxa_precipitacao",
+        unidade="mm/h",
+        janela_horas=24,
+        valor_min=60.0,
+        valor_max=None,
+        fonte_trecho="acumulados de 60 mm em 24 horas na regiao",
+    )
+    chunk = "previsao de acumulados de 60 mm em 24 horas na regiao central"
+
+    status, motivo = classificar(regra, chunk)
+
+    assert status == "suspeito"
+    assert "chuva_acumulada" in motivo
+
+
+def test_taxa_sem_janela_passa():
+    regra = _regra(
+        grandeza="taxa_precipitacao",
+        unidade="mm/h",
+        janela_horas=None,
+        valor_min=6.0,
+        valor_max=30.0,
+        fonte_trecho="Chuva moderada: acima de 6 mm e ate 30 mm/h",
+    )
+    chunk = "classificacao: Chuva moderada: acima de 6 mm e ate 30 mm/h no periodo"
+
+    assert classificar(regra, chunk) == ("ok", None)
+
+
+def test_faixa_degenerada_e_suspeita():
+    # Achado real: "superiores a 90 mm em 24 horas" virou valor_min=90 E
+    # valor_max=90, ou seja "exatamente 90" em vez de "acima de 90".
+    regra = _regra(
+        grandeza="chuva_acumulada",
+        unidade="mm",
+        janela_horas=24,
+        valor_min=90.0,
+        valor_max=90.0,
+        fonte_trecho="acumulados superiores a 90 mm em 24 horas",
+    )
+    chunk = "registro de acumulados superiores a 90 mm em 24 horas no municipio"
+
+    status, motivo = classificar(regra, chunk)
+
+    assert status == "suspeito"
+    assert "degenerada" in motivo
+
+
+def test_limiar_aberto_com_um_extremo_nulo_passa():
+    regra = _regra(
+        grandeza="chuva_acumulada",
+        unidade="mm",
+        janela_horas=24,
+        valor_min=90.0,
+        valor_max=None,
+        fonte_trecho="acumulados superiores a 90 mm em 24 horas",
+    )
+    chunk = "registro de acumulados superiores a 90 mm em 24 horas no municipio"
+
+    assert classificar(regra, chunk) == ("ok", None)

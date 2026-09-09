@@ -140,6 +140,40 @@ def _motivo_de_implausibilidade(
     return f"valor fora da faixa para {grandeza} em {unidade}"
 
 
+# Grandezas cuja unidade ja carrega o tempo (mm/h e uma taxa). Para elas,
+# janela_horas preenchido e contradicao: ou o documento fala de taxa, e a
+# janela nao se aplica, ou fala de acumulado numa janela, e a grandeza
+# deveria ser chuva_acumulada.
+GRANDEZAS_DE_TAXA = {"taxa_precipitacao"}
+
+
+def janela_coerente_com_grandeza(grandeza: str, janela_horas: int | None) -> bool:
+    """Uma taxa nao tem janela: o "por hora" ja esta na unidade.
+
+    Achado real: o modelo leu "60 mm em 24 horas" como taxa_precipitacao de
+    60 mm/h com janela 24. Sao coisas diferentes por um fator de 24 -- 60 mm
+    acumulados em um dia contra 60 mm caindo a cada hora. Codificada como
+    taxa, a regra praticamente nunca dispara, que e o pior modo de falha num
+    sistema de alerta: silencio em vez de erro visivel.
+    """
+    if grandeza in GRANDEZAS_DE_TAXA:
+        return janela_horas is None
+    return True
+
+
+def faixa_nao_degenerada(valor_min: float | None, valor_max: float | None) -> bool:
+    """Um limiar e uma fronteira, nao um ponto.
+
+    Achado real: "superiores a 90 mm em 24 horas" virou valor_min=90 E
+    valor_max=90, o que significa "exatamente 90" em vez de "acima de 90".
+    Assim a regra so dispara num valor exato e, na pratica, nunca. O correto
+    para um limiar aberto e deixar o outro extremo nulo.
+    """
+    if valor_min is None or valor_max is None:
+        return True
+    return valor_min != valor_max
+
+
 def classificar(regra: RegraExtraida, texto_chunk: str) -> tuple[str, str | None]:
     # A ordem das tres checagens importa: cada uma e mais barata e mais
     # fundamental que a seguinte, e a primeira a falhar e a mensagem mais
@@ -159,6 +193,19 @@ def classificar(regra: RegraExtraida, texto_chunk: str) -> tuple[str, str | None
     if not valor_plausivel(regra.grandeza, regra.unidade, regra.valor_min, regra.valor_max):
         motivo = _motivo_de_implausibilidade(regra.grandeza, regra.unidade, regra.valor_min, regra.valor_max)
         return "suspeito", motivo
+    # 4) taxa com janela e contradicao -- ver janela_coerente_com_grandeza.
+    if not janela_coerente_com_grandeza(regra.grandeza, regra.janela_horas):
+        return "suspeito", (
+            f"{regra.grandeza} e taxa (a unidade ja tem o tempo) mas veio com "
+            f"janela_horas={regra.janela_horas}; se o documento fala de acumulado "
+            "numa janela, a grandeza deveria ser chuva_acumulada"
+        )
+    # 5) faixa de um ponto so -- ver faixa_nao_degenerada.
+    if not faixa_nao_degenerada(regra.valor_min, regra.valor_max):
+        return "suspeito", (
+            f"faixa degenerada: valor_min e valor_max sao ambos {regra.valor_min:g}; "
+            "um limiar aberto deixa o outro extremo nulo"
+        )
     return "ok", None
 
 
