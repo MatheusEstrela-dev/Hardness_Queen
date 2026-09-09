@@ -23,18 +23,26 @@ _PADRAO_DE_LIMIAR = re.compile(
     r"\d+(?:[.,]\d+)?\s*(?:mm|m3/s|km/h|kg/m2|dbz|celsius|°c|m\b|h\b|c\b)",
     re.IGNORECASE,
 )
-_MARCACAO_MARKDOWN = re.compile(r"[#*_`|>-]+")
-_ESPACOS = re.compile(r"\s+")
 
 
 def normalizar(texto: str) -> str:
+    # O chunk de origem vem do pymupdf4llm como markdown (ex.: "**termo**
+    # , resto"), enquanto o modelo cita a prosa limpa (ex.: "termo, resto").
+    # As duas formas divergem em pontuacao e espacamento por construcao,
+    # mesmo quando a citacao esta correta -- comparar caractere a caractere
+    # (ou so trocar a marcacao por espaco) gera falso "suspeito" nesse caso.
+    # A sequencia de tokens alfanumericos, porem, e igual nos dois lados.
+    # Extrair tokens com regex (em vez de so remover a pontuacao) tambem
+    # preserva a fronteira entre palavras que a marcacao separava --
+    # "**gnaisse**100mm" produz os tokens "gnaisse" e "100mm" em vez de se
+    # fundir em "gnaisse100mm", o que evitaria a fusao criar uma citacao
+    # falsa que nao existia no texto original.
     sem_acento = "".join(
         caractere
         for caractere in unicodedata.normalize("NFKD", texto)
         if not unicodedata.combining(caractere)
     )
-    sem_markdown = _MARCACAO_MARKDOWN.sub(" ", sem_acento)
-    return _ESPACOS.sub(" ", sem_markdown).strip().lower()
+    return " ".join(re.findall(r"[a-z0-9]+", sem_acento.lower()))
 
 
 def trecho_confere(trecho: str, texto_chunk: str) -> bool:

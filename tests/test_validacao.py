@@ -41,6 +41,44 @@ def test_trecho_inventado_nao_confere():
     assert not trecho_confere("800mm em 24h", "o limiar e de 100mm em 72h")
 
 
+def test_trecho_confere_quando_markdown_deixa_espaco_antes_da_virgula():
+    # pymupdf4llm entrega o chunk como markdown: "**termo** , resto" vira,
+    # apos normalizar, "termo , resto" -- com espaco antes da virgula. O
+    # modelo cita a prosa limpa, sem esse espaco. A comparacao por tokens
+    # alfanumericos ignora a pontuacao dos dois lados e ainda confere.
+    chunk = (
+        "**Manutencao de chuvas continuas** , com aumento progressivo "
+        "dos acumulados"
+    )
+    excerto = "Manutencao de chuvas continuas, com aumento progressivo dos acumulados"
+
+    assert trecho_confere(excerto, chunk)
+
+
+def test_trecho_confere_citacao_inventada_ainda_nao_confere():
+    chunk = (
+        "**Manutencao de chuvas continuas** , com aumento progressivo "
+        "dos acumulados"
+    )
+    excerto = "superiores a 800 mm em 12 horas"
+
+    assert not trecho_confere(excerto, chunk)
+
+
+def test_trecho_confere_nao_funde_palavras_separadas_so_por_markdown():
+    chunk = "solo de **gnaisse**100mm de espessura"
+    excerto = "gnaisse100mm"
+
+    assert not trecho_confere(excerto, chunk)
+
+
+def test_trecho_confere_ignora_diferenca_de_pontuacao():
+    chunk = "o limiar e de: 100mm, em 72h."
+    excerto = "o limiar e de 100mm em 72h"
+
+    assert trecho_confere(excerto, chunk)
+
+
 def test_valor_plausivel_aceita_chuva_razoavel():
     assert valor_plausivel("chuva_acumulada", "mm", 100.0, None)
 
