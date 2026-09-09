@@ -6,7 +6,13 @@ import pymupdf
 import pytest
 from docx import Document
 
-from ingestao.extracao_texto import extrair, extrair_docx, extrair_pdf, titulo_da_secao
+from ingestao.extracao_texto import (
+    TAMANHO_MAXIMO_DO_CHUNK,
+    extrair,
+    extrair_docx,
+    extrair_pdf,
+    titulo_da_secao,
+)
 
 _SCRIPT_CLI = Path(__file__).resolve().parents[1] / "scripts" / "03_extrair_texto.py"
 
@@ -124,6 +130,118 @@ def test_pdf_sem_camada_de_texto_nao_produz_zero_em_silencio(tmp_path: Path):
     assert estado in {"sem_camada_texto", "ocr_aplicado"}
     if estado == "sem_camada_texto":
         assert chunks == []
+
+
+def _docx_com_multiplos_headings(caminho: Path) -> Path:
+    documento = Document()
+    documento.add_heading("1 Limiares hidrologicos", level=1)
+    documento.add_paragraph("Corpo da secao 1.")
+    documento.add_heading("2 Limiares geologicos", level=1)
+    documento.add_paragraph("Corpo da secao 2.")
+    documento.save(caminho)
+    return caminho
+
+
+def _paragrafo_em_negrito(documento: Document, texto: str):
+    paragrafo = documento.add_paragraph()
+    corrida = paragrafo.add_run(texto)
+    corrida.bold = True
+    return paragrafo
+
+
+def _docx_sem_estilo_com_negrito_curto(caminho: Path) -> Path:
+    # documento real (Instrucao_Normativa_COMPLETA_Alertas_MG.docx) marca
+    # titulos so com negrito/maiuscula em paragrafos "Normal", sem usar
+    # estilo Heading -- e o padrao que este fixture reproduz.
+    documento = Document()
+    _paragrafo_em_negrito(documento, "4.2 CARACTERIZACAO DO SOLO")
+    documento.add_paragraph("A cota de transbordamento do Rio Arrudas e 3.8m.")
+    documento.add_paragraph("A saturacao ocorre a partir de 100mm em 72h.")
+    documento.save(caminho)
+    return caminho
+
+
+def _docx_corpo_longo_sem_cabecalho(caminho: Path) -> Path:
+    documento = Document()
+    for indice in range(40):
+        documento.add_paragraph(
+            f"Paragrafo {indice} de corpo continuo sem nenhum marcador de secao, "
+            "escrito para simular prosa real de um laudo tecnico sem estilo de titulo."
+        )
+    documento.save(caminho)
+    return caminho
+
+
+def _docx_secao_com_corpo_que_estoura_o_limite(caminho: Path) -> Path:
+    documento = Document()
+    _paragrafo_em_negrito(documento, "6.2 LIMIARES DE CHUVA")
+    for indice in range(40):
+        documento.add_paragraph(
+            f"Paragrafo {indice} do corpo da secao 6.2, prosa longa o bastante para "
+            "estourar o limite de tamanho do chunk depois de varias repeticoes."
+        )
+    documento.save(caminho)
+    return caminho
+
+
+def _docx_negrito_no_meio_de_paragrafo_longo(caminho: Path) -> Path:
+    documento = Document()
+    documento.add_heading("1 Introducao", level=1)
+    paragrafo = documento.add_paragraph()
+    paragrafo.add_run(
+        "Texto normal antes da parte em destaque, com bastante contexto para "
+        "deixar o paragrafo longo de verdade. "
+    )
+    corrida_negrito = paragrafo.add_run("Trecho em negrito no meio da frase")
+    corrida_negrito.bold = True
+    paragrafo.add_run(
+        ", seguido de mais texto normal para completar a prosa e ultrapassar "
+        "o tamanho tipico de um cabecalho de verdade."
+    )
+    documento.save(caminho)
+    return caminho
+
+
+def test_docx_com_varios_headings_de_estilo_produz_um_chunk_por_secao(tmp_path: Path):
+    # regressao: documento que usa o estilo Heading continua se dividindo por
+    # ele, sem a heuristica de negrito/maiuscula interferir.
+    chunks, _ = extrair_docx(_docx_com_multiplos_headings(tmp_path / "laudo.docx"))
+
+    assert len(chunks) == 2
+    assert chunks[0].secao == "1 Limiares hidrologicos"
+    assert chunks[1].secao == "2 Limiares geologicos"
+
+
+def test_docx_sem_estilo_de_heading_usa_negrito_curto_como_secao(tmp_path: Path):
+    chunks, _ = extrair_docx(_docx_sem_estilo_com_negrito_curto(tmp_path / "laudo.docx"))
+
+    assert len(chunks) == 1
+    assert chunks[0].secao == "4.2 CARACTERIZACAO DO SOLO"
+    assert "3.8m" in chunks[0].texto
+    assert "100mm" in chunks[0].texto
+
+
+def test_docx_sem_cabecalho_detectavel_e_dividido_pelo_limite_de_tamanho(tmp_path: Path):
+    chunks, _ = extrair_docx(_docx_corpo_longo_sem_cabecalho(tmp_path / "laudo.docx"))
+
+    assert len(chunks) > 1
+    assert all(len(chunk.texto) <= TAMANHO_MAXIMO_DO_CHUNK for chunk in chunks)
+
+
+def test_docx_chunk_de_continuacao_carrega_a_secao_do_bloco(tmp_path: Path):
+    chunks, _ = extrair_docx(_docx_secao_com_corpo_que_estoura_o_limite(tmp_path / "laudo.docx"))
+
+    assert len(chunks) > 1
+    assert all(chunk.secao == "6.2 LIMIARES DE CHUVA" for chunk in chunks)
+
+
+def test_docx_negrito_no_meio_de_frase_longa_nao_vira_secao(tmp_path: Path):
+    # guarda contra falso positivo: uma frase de prosa com um trecho em
+    # negrito no meio (nao o paragrafo inteiro) nao pode virar cabecalho.
+    chunks, _ = extrair_docx(_docx_negrito_no_meio_de_paragrafo_longo(tmp_path / "laudo.docx"))
+
+    assert len(chunks) == 1
+    assert chunks[0].secao == "1 Introducao"
 
 
 def test_docx_produz_pagina_nula_e_secao_preenchida(tmp_path: Path):

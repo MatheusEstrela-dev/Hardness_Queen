@@ -10,6 +10,7 @@ from ingestao.persistencia import ler_jsonl
 PASTA_CHUNKS = Path("data/chunks")
 PROPOSTAS = Path("data/regras_propostas.jsonl")
 OMISSOES = Path("data/possiveis_omissoes.jsonl")
+FALHAS = Path("data/possiveis_falhas.jsonl")
 
 
 def main() -> int:
@@ -22,13 +23,18 @@ def main() -> int:
     print(f"{len(chunks)} chunks para processar. Carregando o modelo...")
 
     gerar = criar_gerador_qwen()
-    resumo = processar(chunks, gerar, PROPOSTAS, OMISSOES)
+    resumo = processar(chunks, gerar, PROPOSTAS, OMISSOES, FALHAS)
 
     print("\nResumo:")
     for chave, valor in resumo.items():
         print(f"  {chave}: {valor}")
     if resumo["omissoes"]:
         print(f"\n{resumo['omissoes']} chunk(s) com padrao de limiar e zero regras em '{OMISSOES}'.")
+    if resumo["falhas"]:
+        print(
+            f"\n{resumo['falhas']} chunk(s) falharam durante a extracao e foram registrados em "
+            f"'{FALHAS}'. Apague esse arquivo para reprocessa-los na proxima execucao."
+        )
     return 0
 
 

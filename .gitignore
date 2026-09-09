@@ -7,6 +7,8 @@ data/chunks/
 data/regras_propostas.jsonl
 data/regras_aprovadas.jsonl
 data/decisoes.jsonl
+data/possiveis_omissoes.jsonl
+data/possiveis_falhas.jsonl
 data/manifesto.jsonl
 docs/*.pdf
 docs/*.docx

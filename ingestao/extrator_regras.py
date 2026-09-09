@@ -72,16 +72,46 @@ def processar(
     gerar: Callable[[str], str],
     saida: Path,
     omissoes: Path,
+    falhas: Path,
 ) -> dict:
-    ja_feitos = ids_ja_vistos(saida, "chunk_id") | ids_ja_vistos(omissoes, "chunk_id")
+    # falhas entra no conjunto de "ja feitos" igual a saida e omissoes: um
+    # chunk que falhou (OOM, JSON truncado) nao e retentado numa
+    # reexecucao automatica. Apagar data/possiveis_falhas.jsonl e o jeito
+    # do operador forcar nova tentativa -- util porque OOM pode ser
+    # transitorio (outro processo liberou VRAM) enquanto um chunk
+    # malformado nao muda sozinho.
+    ja_feitos = ids_ja_vistos(saida, "chunk_id") | ids_ja_vistos(omissoes, "chunk_id") | ids_ja_vistos(
+        falhas, "chunk_id"
+    )
 
-    resumo = {"chunks_processados": 0, "chunks_pulados": 0, "regras": 0, "suspeitas": 0, "omissoes": 0}
+    resumo = {
+        "chunks_processados": 0,
+        "chunks_pulados": 0,
+        "regras": 0,
+        "suspeitas": 0,
+        "omissoes": 0,
+        "falhas": 0,
+    }
     for chunk in chunks:
         if chunk.chunk_id in ja_feitos:
             resumo["chunks_pulados"] += 1
             continue
 
-        regras = extrair_do_chunk(chunk, gerar)
+        try:
+            regras = extrair_do_chunk(chunk, gerar)
+        except Exception as erro:
+            # Exception, nao BaseException: KeyboardInterrupt e SystemExit
+            # precisam continuar propagando para o operador poder parar um
+            # lote longo. Nada desaparece em silencio -- mesma convencao da
+            # etapa 03 (erro_extracao no manifesto, ver 21d1b6c).
+            anexar_jsonl(
+                falhas,
+                {"chunk_id": chunk.chunk_id, "doc": chunk.doc, "pagina": chunk.pagina, "erro": str(erro)},
+            )
+            resumo["falhas"] += 1
+            print(f"[falha] chunk {chunk.chunk_id} ({chunk.doc}, pagina {chunk.pagina}): {erro}")
+            continue
+
         for regra in regras:
             anexar_jsonl(saida, regra.model_dump())
             resumo["regras"] += 1

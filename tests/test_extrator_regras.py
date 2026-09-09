@@ -164,8 +164,9 @@ def test_regra_id_muda_quando_extremo_da_faixa_muda():
 def test_processar_grava_regras_e_conta(tmp_path: Path):
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
+    falhas = tmp_path / "falhas.jsonl"
 
-    resumo = processar([_chunk()], _gerador(_uma_regra()), saida, omissoes)
+    resumo = processar([_chunk()], _gerador(_uma_regra()), saida, omissoes, falhas)
 
     assert resumo["regras"] == 1
     assert resumo["chunks_processados"] == 1
@@ -175,9 +176,10 @@ def test_processar_grava_regras_e_conta(tmp_path: Path):
 def test_processar_retoma_e_pula_chunk_ja_feito(tmp_path: Path):
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
-    processar([_chunk()], _gerador(_uma_regra()), saida, omissoes)
+    falhas = tmp_path / "falhas.jsonl"
+    processar([_chunk()], _gerador(_uma_regra()), saida, omissoes, falhas)
 
-    resumo = processar([_chunk()], _gerador(_uma_regra()), saida, omissoes)
+    resumo = processar([_chunk()], _gerador(_uma_regra()), saida, omissoes, falhas)
 
     assert resumo["chunks_pulados"] == 1
     assert len(ler_jsonl(saida)) == 1
@@ -186,8 +188,84 @@ def test_processar_retoma_e_pula_chunk_ja_feito(tmp_path: Path):
 def test_chunk_com_limiar_e_zero_regras_vai_para_omissoes(tmp_path: Path):
     saida = tmp_path / "propostas.jsonl"
     omissoes = tmp_path / "omissoes.jsonl"
+    falhas = tmp_path / "falhas.jsonl"
 
-    resumo = processar([_chunk()], _gerador({"regras": []}), saida, omissoes)
+    resumo = processar([_chunk()], _gerador({"regras": []}), saida, omissoes, falhas)
 
     assert resumo["omissoes"] == 1
     assert ler_jsonl(omissoes)[0]["chunk_id"] == "c1"
+
+
+def _gerador_com_falha(textos_que_falham: set[str], payload: dict):
+    def gerar(prompt: str) -> str:
+        for texto in textos_que_falham:
+            if texto in prompt:
+                raise RuntimeError("saida truncada: JSON invalido")
+        return json.dumps(payload, ensure_ascii=False)
+
+    return gerar
+
+
+def test_chunk_que_falha_nao_interrompe_os_demais(tmp_path: Path):
+    saida = tmp_path / "propostas.jsonl"
+    omissoes = tmp_path / "omissoes.jsonl"
+    falhas = tmp_path / "falhas.jsonl"
+    chunk_ruim = _chunk("c1")
+    chunk_bom = Chunk(
+        chunk_id="c2",
+        doc="laudo.pdf",
+        pagina=13,
+        secao="4.3 Outra secao",
+        texto="outro trecho qualquer",
+    )
+
+    resumo = processar(
+        [chunk_ruim, chunk_bom],
+        _gerador_com_falha({chunk_ruim.texto}, _uma_regra()),
+        saida,
+        omissoes,
+        falhas,
+    )
+
+    assert resumo["chunks_processados"] == 1
+    assert len(ler_jsonl(saida)) == 1
+
+
+def test_falha_e_registrada_no_arquivo_de_falhas_com_o_erro(tmp_path: Path):
+    saida = tmp_path / "propostas.jsonl"
+    omissoes = tmp_path / "omissoes.jsonl"
+    falhas = tmp_path / "falhas.jsonl"
+
+    processar([_chunk()], _gerador_com_falha({TEXTO}, _uma_regra()), saida, omissoes, falhas)
+
+    registros = ler_jsonl(falhas)
+    assert len(registros) == 1
+    assert registros[0]["chunk_id"] == "c1"
+    assert registros[0]["doc"] == "laudo.pdf"
+    assert registros[0]["pagina"] == 12
+    assert "saida truncada" in registros[0]["erro"]
+
+
+def test_resumo_conta_falhas(tmp_path: Path):
+    saida = tmp_path / "propostas.jsonl"
+    omissoes = tmp_path / "omissoes.jsonl"
+    falhas = tmp_path / "falhas.jsonl"
+
+    resumo = processar([_chunk()], _gerador_com_falha({TEXTO}, _uma_regra()), saida, omissoes, falhas)
+
+    assert resumo["falhas"] == 1
+
+
+def test_reexecucao_pula_chunk_ja_marcado_como_falha(tmp_path: Path):
+    saida = tmp_path / "propostas.jsonl"
+    omissoes = tmp_path / "omissoes.jsonl"
+    falhas = tmp_path / "falhas.jsonl"
+    processar([_chunk()], _gerador_com_falha({TEXTO}, _uma_regra()), saida, omissoes, falhas)
+
+    # o gerador desta segunda chamada nao falharia mais, mas o chunk ja esta
+    # marcado como falha e deve ser pulado -- o operador reprocessa apagando
+    # data/possiveis_falhas.jsonl, nao automaticamente.
+    resumo = processar([_chunk()], _gerador(_uma_regra()), saida, omissoes, falhas)
+
+    assert resumo["chunks_pulados"] == 1
+    assert resumo["falhas"] == 0
