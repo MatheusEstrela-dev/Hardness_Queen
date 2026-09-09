@@ -30,6 +30,8 @@ Fora: ocorrencias historicas (eventos passados com data e local), que tem nature
 
 Pressuposto confirmado: as camadas geograficas (encostas mapeadas, bacias, limites municipais) ja existem em base acessivel da Defesa Civil. A esteira consome essas geometrias, nao as produz.
 
+Tambem fora da v1: um painel de omissoes na aplicacao web de revisao. Possiveis omissoes (chunk com padrao de limiar e zero regras) sao reportadas somente por `just omissoes-stats`, uma ferramenta de linha de comando para o operador -- nao chegam a fila de revisao humana. Isto e deliberado, nao uma lacuna esquecida (ver secao 11).
+
 ## 4. Contrato de dados
 
 Objeto unico que toda a esteira serve:
@@ -96,22 +98,24 @@ O modelo base `Qwen/Qwen2.5-3B` usado no treino do LoRA nao serve para esta etap
 **JSON garantido por decodificacao restrita**, via `outlines` sobre o modelo `transformers` quantizado:
 
 ```python
-class Regra(BaseModel):
+class RegraExtraida(BaseModel):
     dominio: Literal["geologia", "hidrologia", "meteorologia"]
-    entidade_tipo: Literal["tipo_solo", "bacia", "estacao", "municipio"]
+    entidade_tipo: Literal["tipo_solo", "bacia", "estacao", "municipio", "regiao", "estado"]
     entidade_nome: str
-    grandeza: Literal["chuva_acumulada", "cota", "vazao"]
+    grandeza: Literal["chuva_acumulada", "cota", "vazao", "vento", "vil", "refletividade", "temperatura_topo", "taxa_precipitacao"]
     janela_horas: int | None
-    unidade: Literal["mm", "m", "m3/s"]
-    nivel: Literal["atencao", "critico"]
-    valor: float
-    fonte_trecho: str
+    unidade: Literal["mm", "m", "m3/s", "km/h", "kg/m2", "dBZ", "celsius", "mm/h"]
+    escala: Literal["alerta_cor", "intensidade"]
+    nivel: Literal["verde", "amarelo", "laranja", "vermelho", "roxo", "fraca", "moderada", "forte", "muito_forte", "extremo"]
+    valor_min: float | None
+    valor_max: float | None
+    fonte_trecho: str = Field(min_length=10, max_length=100)
 
 class Extracao(BaseModel):
-    regras: conlist(Regra, min_length=0)
+    regras: list[RegraExtraida]
 ```
 
-O schema declara deliberadamente menos campos que o contrato da secao 4: o modelo produz apenas os campos analiticos mais o `fonte_trecho`, e o script anexa `fonte_doc`, `fonte_pagina` e `fonte_secao` a partir dos metadados do chunk. Alem de reduzir o que o modelo tem de acertar, isso torna impossivel atribuir a regra ao documento ou a pagina errada, porque essa informacao nunca passa pelo modelo.
+`RegraExtraida` e exatamente o que o modelo produz -- o schema declara deliberadamente menos campos que o contrato da secao 4. O script anexa a procedencia (`fonte_doc`, `fonte_pagina`, `fonte_secao`) a partir dos metadados do chunk, alem de `regra_id`, `chunk_id`, `status` e `motivo_suspeita` apos a checagem descrita abaixo. O modelo enriquecido resultante -- o que de fato circula pela revisao e pela carga -- reusa o nome `Regra` (`class Regra(RegraExtraida)`), entao `Regra` na base de codigo nao e o schema que o modelo preenche, e sim o que vem depois dele. Alem de reduzir o que o modelo tem de acertar, isso torna impossivel atribuir a regra ao documento ou a pagina errada, porque essa informacao nunca passa pelo modelo.
 
 A cada token, os que produziriam JSON invalido sao eliminados antes da amostragem. JSON valido deixa de ser um pedido no prompt e passa a ser propriedade estrutural. Os `Literal` eliminam o trabalho de normalizacao posterior: `"Geologia"`, `"geologia "` e `"GEO"` nao sao geraveis. O `min_length=0` permite que um chunk sem regras devolva lista vazia legitimamente.
 
@@ -120,9 +124,9 @@ A cada token, os que produziriam JSON invalido sao eliminados antes da amostrage
 1. **Conferencia por substring.** Se o `fonte_trecho` citado nao aparece no chunk de origem (comparacao normalizada para espacos e markdown), a extracao e marcada `suspeito`. Pega justamente a classe de erro mais perigosa, a citacao inventada.
 2. **Faixa plausivel por dominio.** Valor fora de faixa razoavel para a grandeza e marcado `suspeito`, nunca descartado -- a prioridade e recall, e o portao humano filtra o excesso.
 
-**Decodificacao greedy, temperatura 0.** Nao por qualidade, mas por reprodutibilidade: a revisao humana e caro, e se reexecutar produzisse conjunto diferente de regras, as aprovacoes anteriores ficariam orfas sem sinal algum.
+**Decodificacao greedy, `do_sample=False` explicito.** Nao por qualidade, mas por reprodutibilidade: a revisao humana e cara, e se reexecutar produzisse conjunto diferente de regras, as aprovacoes anteriores ficariam orfas sem sinal algum. Nao se pede isso via `temperature=0`: toda variante Instruct do Qwen2.5 traz `do_sample=True` no `generation_config`, e com `do_sample=True` o `transformers` monta um `TemperatureLogitsWarper` que rejeita `temperature=0` com `ValueError`. `do_sample=False` e a forma correta porque independe do `generation_config` default de qualquer modelo (ver secao 10).
 
-**Rede de recall.** O risco de um 7B e omitir regra, e o portao humano nao pega omissao, porque ninguem revisa o que nao apareceu na lista. Um regex de padrao de limiar varre os chunks e marca os que contem tal padrao mas produziram zero regras. Esses entram na revisao como possivel omissao.
+**Rede de recall.** O risco de um 7B e omitir regra, e o portao humano nao pega omissao, porque ninguem revisa o que nao apareceu na lista. Um regex de padrao de limiar varre os chunks e marca os que contem tal padrao mas produziram zero regras. Esses ficam disponiveis ao operador como possivel omissao (ver secao 3 e secao 11) -- nao entram na fila de revisao humana na v1.
 
 Retomavel por `chunk_id`: esta e a etapa lenta, e uma reinicializacao nao pode custar horas de GPU. Tempo por chunk sera medido na implementacao, nao estimado aqui.
 
@@ -132,7 +136,7 @@ Script: `scripts/05_revisar.py`
 Entrada: `data/regras_propostas.jsonl`
 Saida: `data/decisoes.jsonl` (acumulativo), `data/regras_aprovadas.jsonl`
 
-Aplicacao web local: FastAPI servindo pagina unica, presa em `127.0.0.1`, sem autenticacao e sem banco. Dois endpoints: `GET /` para a fila de pendentes e `POST /decisao`. Dependencias novas: `fastapi`, `uvicorn`.
+Aplicacao web local: FastAPI servindo pagina unica, presa em `127.0.0.1`, sem autenticacao e sem banco. Tres endpoints: `GET /` (a pagina), `GET /api/pendentes` (a fila) e `POST /api/decisao`. Dependencias novas: `fastapi`, `uvicorn`.
 
 A tela apresenta o `fonte_trecho` em destaque com o numero realcado, e os campos extraidos ao lado. **A evidencia vem antes da conclusao da maquina**: na ordem inversa o revisor tende a confirmar o numero que ja esta na tela, e um portao que so confirma nao e portao.
 
@@ -205,6 +209,6 @@ Cada linha resultante e um alerta a ser redigido, e e nesse ponto -- e apenas ne
 - Um PDF digitalizado sem Tesseract disponivel resulta em documento com estado `sem_camada_texto` no relatorio, e nao em zero regras silencioso.
 - Um `.docx` produz regras com `fonte_pagina` nulo e `fonte_secao` preenchido.
 - Uma extracao cujo `fonte_trecho` nao existe no chunk de origem chega a revisao com status `suspeito`.
-- Um chunk contendo padrao de limiar que produziu zero regras aparece na revisao como possivel omissao.
+- Um chunk contendo padrao de limiar que produziu zero regras e reportado como possivel omissao via `just omissoes-stats` (`scripts/status.py omissoes`). Isto e um relatorio de operador, nao a fila de revisao: a v1 nao tem endpoint nem tela de omissoes na aplicacao web (ver secao 3).
 - Reexecutar a etapa 04 sobre os mesmos chunks produz `regra_id` identicos, e decisoes ja registradas nao reaparecem na fila de revisao.
 - Carregar um limiar revisado para a mesma entidade fecha `vigente_ate` da linha anterior e mantem as duas linhas na tabela.
