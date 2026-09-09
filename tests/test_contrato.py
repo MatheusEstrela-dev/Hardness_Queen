@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from ingestao.contrato import Chunk, Extracao, Regra, RegraExtraida
+from ingestao.contrato import MAX_CHARS_FONTE_TRECHO, Chunk, Extracao, Regra, RegraExtraida
 
 
 def _regra_valida(**sobrescritas) -> dict:
@@ -206,20 +206,28 @@ def test_chunk_aceita_pagina_nula():
 
 
 def test_fonte_trecho_mais_longo_que_o_teto_e_rejeitado():
-    # Regressao: um chunk com uma tabela de eventos (9 linhas x 7 colunas,
-    # celulas multi-linha em <br>) fez o modelo copiar uma linha inteira em
-    # fonte_trecho, esgotando o orcamento de tokens antes do JSON fechar
-    # (task-16). Uma linha dessa tabela tem 87-145 caracteres; o teto
-    # precisa tornar isso estruturalmente impossivel.
-    payload = _regra_valida(
-        fonte_trecho=(
-            "Teofilo Otoni|3|15/12/2017 - 186 mm; 02/02/2018 - 35,2 mm; "
-            "25/11/2022 - 264,8 mm|Max 120h 175,8|110 mm|Vale do Mucuri|15"
-        )
-    )
+    payload = _regra_valida(fonte_trecho="x" * (MAX_CHARS_FONTE_TRECHO + 1))
 
     with pytest.raises(ValidationError):
         RegraExtraida(**payload)
+
+
+def test_frase_de_limiar_tipica_do_acervo_cabe_no_teto():
+    # O teto anterior de 100 caracteres cortava a citacao ANTES dos numeros:
+    # esta frase, extraida de POP_ENVIO_DE_ALERTA_HIDROMETEOROLOGICO, tem 117
+    # caracteres e chegava truncada em "...com aumento progressivo dos", de
+    # modo que extremos_citados reprovava uma extracao correta. A mediana das
+    # frases com limiar neste acervo e 124 caracteres.
+    frase = (
+        "Manutencao de chuvas continuas, com aumento progressivo dos acumulados, "
+        "podendo variar entre 6 mm e 30 mm em uma hora"
+    )
+    assert len(frase) > 100
+    assert len(frase) <= MAX_CHARS_FONTE_TRECHO
+
+    regra = RegraExtraida(**_regra_valida(fonte_trecho=frase))
+
+    assert "30 mm" in regra.fonte_trecho
 
 
 def test_fonte_trecho_mais_curto_que_o_minimo_e_rejeitado():

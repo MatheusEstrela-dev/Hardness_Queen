@@ -57,6 +57,29 @@ Veredito = Literal["aprovado", "rejeitado", "corrigido"]
 Origem = Literal["tabela", "modelo"]
 
 
+# Limites do excerto citado, medidos sobre as frases com padrao de limiar nos
+# 92 chunks reais deste acervo: mediana 124 caracteres, p75 174, p90 237.
+# Um teto de 100 (o primeiro valor adotado, calibrado em apenas dois exemplos
+# de 46 e 68 caracteres) cobria so 35% dessas frases -- a gramatica truncava a
+# citacao ANTES dos numeros e extremos_citados reprovava extracao correta:
+# 44 das 89 suspeitas de uma execucao real eram esse falso positivo. 250
+# cobre 91%.
+#
+# O teto nasceu para impedir que copiar uma linha da tabela de eventos
+# (87-145 caracteres) esgotasse o orcamento de tokens antes do JSON fechar.
+# Esse risco hoje e coberto por MAX_TOKENS_DE_SAIDA=4096, entao o teto pode
+# servir ao seu proposito restante: manter a citacao curta o bastante para um
+# humano conferir de relance, sem cortar a frase que sustenta o numero.
+#
+# O bound entra no JSON schema (minLength/maxLength) que outlines usa para
+# montar a gramatica -- restricao estrutural, nao pedido no prompt.
+MAX_CHARS_FONTE_TRECHO = 250
+
+# O minimo barra citacao vazia ou de duas palavras soltas ("6 mm"), que nao
+# permite a um revisor achar o numero no documento original.
+MIN_CHARS_FONTE_TRECHO = 10
+
+
 class RegraExtraida(BaseModel):
     """Exatamente o que o modelo produz. A procedencia de arquivo nao passa
     pelo modelo: quem anexa e o script, a partir dos metadados do chunk.
@@ -83,27 +106,7 @@ class RegraExtraida(BaseModel):
     nivel: Nivel
     valor_min: float | None
     valor_max: float | None
-    # Um excerto serve para um humano confirmar um numero e para
-    # trecho_confere localiza-lo no chunk de origem -- nenhuma das duas
-    # coisas precisa de centenas de caracteres. Os limiares genuinos deste
-    # acervo citam algo como "podendo variar entre 6 mm e 30 mm em uma
-    # hora" (46 caracteres) ou "Previsao ou ocorrencia de acumulados entre
-    # 30 mm e 70 mm em 1 hora" (68 caracteres); 100 deixa folga confortavel
-    # acima disso. Ao mesmo tempo, isso torna impossivel copiar uma linha
-    # da tabela de eventos historicos de PROTOCOLO_ALERTAS_METEORO.docx (9
-    # linhas x 7 colunas, celulas multi-linha em <br>), cuja linha mais
-    # curta tem 87 caracteres e a mais longa 145 -- foi copiar uma dessas
-    # linhas que esgotou o orcamento de tokens antes do JSON fechar
-    # (task-16). O minimo de 10 barra uma citacao vazia ou de duas
-    # palavras soltas ("6 mm"), que nao verifica nada.
-    #
-    # O bound entra no JSON schema (minLength/maxLength) que outlines usa
-    # para montar a gramatica de decodificacao -- constrangimento
-    # estrutural, nao pedido no prompt. Confirmado em
-    # outlines_core.build_regex_from_schema: o regex gerado para uma string
-    # com esses bounds usa repeticao limitada, ex. "{10,100}", entao o
-    # decodificador nao tem caminho para emitir um token alem do teto.
-    fonte_trecho: str = Field(min_length=10, max_length=100)
+    fonte_trecho: str = Field(min_length=MIN_CHARS_FONTE_TRECHO, max_length=MAX_CHARS_FONTE_TRECHO)
 
     @model_validator(mode="after")
     def _exige_pelo_menos_um_extremo(self) -> "RegraExtraida":
