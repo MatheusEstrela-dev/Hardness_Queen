@@ -4,6 +4,8 @@ from pathlib import Path
 import pymupdf
 import pymupdf4llm
 from docx import Document
+from docx.table import Table
+from docx.text.paragraph import Paragraph
 
 from ingestao.contrato import Chunk
 from ingestao.identidade import chunk_id
@@ -97,6 +99,39 @@ def _paragrafo_e_cabecalho_por_heuristica(paragrafo) -> bool:
     return todo_em_negrito or texto.isupper() or bool(_NUMERACAO_DE_SECAO.match(texto))
 
 
+def _celula_para_markdown(texto: str) -> str:
+    # \n dentro de uma celula (paragrafos multiplos, quebra manual de linha)
+    # vira <br>, mesma convencao do pymupdf4llm -- sem isso a linha da
+    # tabela deixaria de caber numa unica linha de texto, quebrando a
+    # premissa "entidade e valor na mesma linha".
+    texto = texto.strip().replace("\n", "<br>")
+    return texto.replace("|", "\\|")
+
+
+def _tabela_para_markdown(tabela: Table) -> str:
+    """Renderiza uma tabela do .docx como markdown com linha de cabecalho,
+    no mesmo formato que o pymupdf4llm produz para tabela de PDF (ver
+    test_pdf_com_tabela_preserva_as_colunas_em_markdown) -- assim o
+    extrator ve um formato consistente independente da origem do
+    documento.
+
+    Tabela sem linha alguma (guarda contra .docx malformado) devolve
+    string vazia e nao entra no chunk.
+    """
+    linhas = tabela.rows
+    if not linhas:
+        return ""
+
+    linhas_markdown: list[str] = []
+    for indice, linha in enumerate(linhas):
+        celulas = [_celula_para_markdown(celula.text) for celula in linha.cells]
+        linhas_markdown.append("|" + "|".join(celulas) + "|")
+        if indice == 0:
+            linhas_markdown.append("|" + "|".join("---" for _ in celulas) + "|")
+
+    return "\n".join(linhas_markdown)
+
+
 def extrair_docx(caminho: Path) -> tuple[list[Chunk], str]:
     documento = Document(str(caminho))
 
@@ -122,29 +157,45 @@ def extrair_docx(caminho: Path) -> tuple[list[Chunk], str]:
             )
         )
 
-    for paragrafo in documento.paragraphs:
-        texto = paragrafo.text.strip()
-        if not texto:
-            continue
-
-        e_cabecalho = paragrafo.style.name.startswith("Heading") or _paragrafo_e_cabecalho_por_heuristica(
-            paragrafo
-        )
-        if e_cabecalho:
-            fechar_bloco()
-            corpo = [texto]
-            tamanho_do_corpo = len(texto)
-            secao_atual = texto
-            continue
-
-        # teto de tamanho: fecha no limite do paragrafo, nunca no meio de um
-        # paragrafo, e continua na mesma secao (secao_atual nao muda) --
-        # e assim que o chunk de continuacao carrega a procedencia adiante.
+    def adicionar_ao_corpo(texto: str) -> None:
+        nonlocal corpo, tamanho_do_corpo
+        # teto de tamanho: fecha no bloco atual antes de estourar, nunca no
+        # meio de um item (paragrafo ou tabela), e continua na mesma secao
+        # (secao_atual nao muda) -- e assim que o chunk de continuacao
+        # carrega a procedencia adiante. Um item sozinho maior que o teto
+        # (uma tabela grande) e mantido inteiro mesmo assim: nao ha logica
+        # de particionar um item em varios chunks, so de fechar o bloco
+        # anterior antes dele.
         if corpo and tamanho_do_corpo + len(texto) + 1 > TAMANHO_MAXIMO_DO_CHUNK:
             fechar_bloco()
-
         corpo.append(texto)
         tamanho_do_corpo += len(texto) + 1
+
+    # document.paragraphs e document.tables sao vistas separadas e perdem a
+    # ordem relativa entre paragrafo e tabela; iter_inner_content() percorre
+    # o corpo do documento (element.body) e devolve Paragraph/Table na
+    # ordem em que aparecem no XML, que e a ordem em que precisam entrar no
+    # chunk.
+    for item in documento.iter_inner_content():
+        if isinstance(item, Paragraph):
+            texto = item.text.strip()
+            if not texto:
+                continue
+
+            e_cabecalho = item.style.name.startswith("Heading") or _paragrafo_e_cabecalho_por_heuristica(item)
+            if e_cabecalho:
+                fechar_bloco()
+                corpo = [texto]
+                tamanho_do_corpo = len(texto)
+                secao_atual = texto
+                continue
+
+            adicionar_ao_corpo(texto)
+        elif isinstance(item, Table):
+            texto_tabela = _tabela_para_markdown(item)
+            if not texto_tabela:
+                continue
+            adicionar_ao_corpo(texto_tabela)
 
     fechar_bloco()
 

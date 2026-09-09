@@ -252,6 +252,121 @@ def test_docx_produz_pagina_nula_e_secao_preenchida(tmp_path: Path):
     assert chunks[0].secao == "1 Limiares hidrologicos"
 
 
+def _docx_paragrafo_tabela_paragrafo(caminho: Path) -> Path:
+    documento = Document()
+    documento.add_paragraph("Paragrafo antes da tabela.")
+    tabela = documento.add_table(rows=2, cols=2)
+    tabela.rows[0].cells[0].text = "Intensidade"
+    tabela.rows[0].cells[1].text = "Taxa de precipitacao"
+    tabela.rows[1].cells[0].text = "Forte"
+    tabela.rows[1].cells[1].text = "30 mm/h a 70 mm/h"
+    documento.add_paragraph("Paragrafo depois da tabela.")
+    documento.save(caminho)
+    return caminho
+
+
+def _docx_tabela_perto_do_limite(caminho: Path) -> Path:
+    # preenchimento perto do teto (2800): a tabela so cabe se o bloco
+    # anterior for fechado primeiro -- e a condicao que exercita "tabela
+    # nunca dividida entre chunks".
+    documento = Document()
+    texto_grande = ("Preenchimento de prosa para chegar perto do teto do chunk. " * 60)[:2760]
+    documento.add_paragraph(texto_grande)
+    tabela = documento.add_table(rows=2, cols=2)
+    tabela.rows[0].cells[0].text = "PRIMEIRA_CELULA"
+    tabela.rows[0].cells[1].text = "cabecalho"
+    tabela.rows[1].cells[0].text = "corpo"
+    tabela.rows[1].cells[1].text = "ULTIMA_CELULA"
+    documento.save(caminho)
+    return caminho
+
+
+def _docx_tabela_vazia_entre_paragrafos(caminho: Path) -> Path:
+    documento = Document()
+    documento.add_paragraph("Antes da tabela vazia.")
+    documento.add_table(rows=0, cols=2)
+    documento.add_paragraph("Depois da tabela vazia.")
+    documento.save(caminho)
+    return caminho
+
+
+def _docx_tabela_com_celulas_vazias(caminho: Path) -> Path:
+    documento = Document()
+    documento.add_paragraph("Antes.")
+    tabela = documento.add_table(rows=2, cols=2)
+    tabela.rows[0].cells[0].text = "Cabecalho"
+    # as demais celulas ficam vazias de proposito
+    documento.add_paragraph("Depois.")
+    documento.save(caminho)
+    return caminho
+
+
+def test_docx_tabela_aparece_entre_os_paragrafos_na_ordem_do_documento(tmp_path: Path):
+    chunks, _ = extrair_docx(_docx_paragrafo_tabela_paragrafo(tmp_path / "laudo.docx"))
+
+    assert len(chunks) == 1
+    texto = chunks[0].texto
+    posicao_antes = texto.index("Paragrafo antes da tabela.")
+    posicao_tabela = texto.index("Forte")
+    posicao_depois = texto.index("Paragrafo depois da tabela.")
+    assert posicao_antes < posicao_tabela < posicao_depois
+
+
+def test_docx_tabela_mantem_linha_e_valor_na_mesma_linha(tmp_path: Path):
+    chunks, _ = extrair_docx(_docx_paragrafo_tabela_paragrafo(tmp_path / "laudo.docx"))
+
+    texto = chunks[0].texto
+    linha_forte = next(linha for linha in texto.splitlines() if "Forte" in linha)
+    assert "30 mm/h a 70 mm/h" in linha_forte
+
+
+def test_docx_tabela_preserva_linha_de_cabecalho_markdown(tmp_path: Path):
+    chunks, _ = extrair_docx(_docx_paragrafo_tabela_paragrafo(tmp_path / "laudo.docx"))
+
+    texto = chunks[0].texto
+    linhas = texto.splitlines()
+    indice_cabecalho = next(i for i, linha in enumerate(linhas) if "Intensidade" in linha)
+    linha_separadora = linhas[indice_cabecalho + 1]
+    assert linha_separadora.strip("|")
+    assert set(linha_separadora) <= {"-", "|"}
+
+
+def test_docx_tabela_nunca_e_dividida_entre_chunks(tmp_path: Path):
+    chunks, _ = extrair_docx(_docx_tabela_perto_do_limite(tmp_path / "laudo.docx"))
+
+    assert len(chunks) >= 2
+    chunk_com_tabela = next(chunk for chunk in chunks if "PRIMEIRA_CELULA" in chunk.texto)
+    assert "ULTIMA_CELULA" in chunk_com_tabela.texto
+
+
+def test_docx_tabela_vazia_nao_quebra_a_extracao(tmp_path: Path):
+    chunks, _ = extrair_docx(_docx_tabela_vazia_entre_paragrafos(tmp_path / "laudo.docx"))
+
+    assert len(chunks) == 1
+    assert "Antes da tabela vazia." in chunks[0].texto
+    assert "Depois da tabela vazia." in chunks[0].texto
+
+
+def test_docx_tabela_com_celulas_vazias_nao_produz_linha_malformada(tmp_path: Path):
+    chunks, _ = extrair_docx(_docx_tabela_com_celulas_vazias(tmp_path / "laudo.docx"))
+
+    texto = chunks[0].texto
+    linhas_da_tabela = [linha for linha in texto.splitlines() if linha.startswith("|")]
+    assert linhas_da_tabela
+    numero_de_colunas = linhas_da_tabela[0].count("|")
+    assert all(linha.count("|") == numero_de_colunas for linha in linhas_da_tabela)
+
+
+def test_docx_sem_tabela_mantem_a_mesma_divisao_de_chunks_de_antes(tmp_path: Path):
+    # regressao: documento sem nenhuma tabela produz exatamente a mesma
+    # divisao por secao de antes desta mudanca.
+    chunks, _ = extrair_docx(_docx_com_multiplos_headings(tmp_path / "laudo.docx"))
+
+    assert len(chunks) == 2
+    assert chunks[0].secao == "1 Limiares hidrologicos"
+    assert chunks[1].secao == "2 Limiares geologicos"
+
+
 def test_chunk_id_e_preenchido(tmp_path: Path):
     chunks, _ = extrair_pdf(_pdf_com_texto(tmp_path / "laudo.pdf"))
 
