@@ -6,16 +6,15 @@ from ingestao.identidade import regra_id
 from ingestao.persistencia import anexar_jsonl, ids_ja_vistos
 from ingestao.validacao import classificar, suspeito_de_omissao
 
-# Modelo de producao pretendido: scripts/04_extrair_regras.py chama
+# Modelo de producao: scripts/04_extrair_regras.py chama
 # criar_gerador_qwen() sem argumento e herda esta constante, entao ela precisa
 # continuar sendo a variante Instruct -- e a que sabe seguir a instrucao de
 # extrair TODOS os limiares, nao so notar que existe um numero no texto.
 #
-# A medicao de VRAM e tempo por chunk feita nesta sessao (ver secao 10 da
-# spec) usou Qwen2.5-3B (variante base) porque os pesos do 7B-Instruct nao
-# couberam no tempo de sessao disponivel (link a ~1,71 MB/s agregado, ~2h
-# estimadas para os ~15GB). Essa medicao passa o modelo explicitamente em
-# tests/test_extracao_real.py -- ela nao depende nem altera este padrao.
+# A medicao de VRAM e tempo por chunk contra este modelo (ver secao 10 da
+# spec) foi feita com os pesos completos em disco, em tests/test_extracao_real.py,
+# que chama criar_gerador_qwen() sem argumento para medir exatamente o que
+# producao executa.
 MODELO_PADRAO = "Qwen/Qwen2.5-7B-Instruct"
 SEMENTE = 42
 MAX_TOKENS_DE_SAIDA = 1024
@@ -108,7 +107,7 @@ def criar_gerador_qwen(model_id: str = MODELO_PADRAO) -> Callable[[str], str]:
 
     # Efeito colateral: torch.manual_seed muda o estado global do gerador de
     # numeros aleatorios do processo, nao so deste gerador. Inofensivo aqui
-    # porque a decodificacao e gulosa (temperature=0), mas quem compartilhar
+    # porque a decodificacao e gulosa (do_sample=False), mas quem compartilhar
     # o processo com outro codigo que depende de aleatoriedade (ex.: o script
     # de treino) nao deveria esperar isso.
     torch.manual_seed(SEMENTE)
@@ -135,12 +134,24 @@ def criar_gerador_qwen(model_id: str = MODELO_PADRAO) -> Callable[[str], str]:
         # transformers.generate(), que valida a lista contra a assinatura de
         # prepare_inputs_for_generation e rejeita chaves desconhecidas.
         # "seed" nao esta nessa lista (ValueError: model_kwargs nao usado) --
-        # a determinacao aqui vem de temperature=0 (decodificacao gulosa) mais
-        # o torch.manual_seed acima, chamado uma vez na criacao do gerador.
+        # a determinacao aqui vem de do_sample=False (decodificacao gulosa)
+        # mais o torch.manual_seed acima, chamado uma vez na criacao do
+        # gerador.
+        #
+        # do_sample=False precisa ser explicito, nao um efeito colateral de
+        # temperature=0. O generation_config default varia por modelo: o
+        # Qwen2.5-3B base vem com do_sample=False (temperature ignorada, entao
+        # temperature=0 passava batido por acidente), mas todo variante
+        # Instruct -- incluindo o Qwen2.5-7B-Instruct de producao -- vem com
+        # do_sample=True e temperature=0.7. Com do_sample=True, transformers
+        # monta um TemperatureLogitsWarper e temperature=0 vira
+        # "ValueError: `temperature` (=0) has to be a strictly positive
+        # float". Pedir do_sample=False funciona independente do modelo, que
+        # e exatamente o que a decodificacao gulosa deste projeto precisa.
         return gerador(
             prompt,
             max_new_tokens=MAX_TOKENS_DE_SAIDA,
-            temperature=0,
+            do_sample=False,
         )
 
     return gerar

@@ -19,11 +19,13 @@ def test_modelo_real_extrai_os_dois_limiares_do_trecho():
     chunk = Chunk(chunk_id="c1", doc="laudo.pdf", pagina=12, secao="4.2 Caracterizacao do solo", texto=TEXTO)
 
     torch.cuda.reset_peak_memory_stats()
-    # Pino explicitamente o 3B base em vez de herdar MODELO_PADRAO: essa
-    # constante e o modelo de producao (7B-Instruct), e este teste so mede o
-    # que coube em disco nesta sessao. Nao deixar essa medicao arrastar o
-    # padrao de producao junto.
-    gerar = criar_gerador_qwen(model_id="Qwen/Qwen2.5-3B")
+    # Sem argumento: herda MODELO_PADRAO (Qwen2.5-7B-Instruct), o modelo de
+    # producao real. Antes este teste pinava o 3B base explicitamente porque
+    # os pesos do 7B-Instruct ainda nao tinham terminado de baixar -- isso
+    # foi uma medida temporaria enquanto o download corria, nao uma escolha
+    # definitiva. Com os pesos completos no disco, o teste precisa medir o
+    # que producao de fato executa.
+    gerar = criar_gerador_qwen()
     inicio = time.time()
     regras = extrair_do_chunk(chunk, gerar)
     decorrido = time.time() - inicio
