@@ -57,7 +57,7 @@ function mostrar() {
   motivo.textContent = atual.motivo_suspeita || "";
 
   const ordem = ["faixa", "unidade", "entidade_nome", "escala", "nivel", "janela_horas",
-                 "dominio", "grandeza", "fonte_doc", "fonte_pagina", "fonte_secao"];
+                 "dominio", "grandeza", "origem", "fonte_doc", "fonte_pagina", "fonte_secao"];
   document.getElementById("campos").innerHTML = ordem
     .map(campo => `<div class="campo"><strong>${campo}</strong>${
       campo === "faixa" ? formatarFaixa(atual) : (atual[campo] ?? "-")

@@ -110,6 +110,12 @@ def test_extrair_anexa_procedencia_que_nao_veio_do_modelo():
     assert regras[0].chunk_id == "c1"
 
 
+def test_extrair_do_chunk_marca_origem_modelo():
+    regras = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
+
+    assert regras[0].origem == "modelo"
+
+
 def test_regra_boa_recebe_status_ok():
     regras = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
 
@@ -334,3 +340,88 @@ def test_json_truncado_no_meio_de_uma_string_vira_falha_registrada_e_nao_para_o_
     assert len(registros) == 1
     assert registros[0]["chunk_id"] == "c1"
     assert len(ler_jsonl(saida)) == 2
+
+
+TABELA_DE_INTENSIDADE = """
+| INTENSIDADE | TAXA DE PRECIPITACAO |
+| --- | --- |
+| Fraca | <= 6,0 mm/h |
+| Moderada | 6 mm/h a 30 mm/h |
+| Forte | 30 mm/h a 70 mm/h |
+| Muito Forte | 70 mm/h a 90 mm/h |
+| Extremo | > 90mm/h |
+"""
+
+
+def _gerador_que_conta_chamadas(payload: dict):
+    chamadas = {"total": 0}
+
+    def gerar(_prompt: str) -> str:
+        chamadas["total"] += 1
+        return json.dumps(payload, ensure_ascii=False)
+
+    return gerar, chamadas
+
+
+def test_chunk_com_tabela_reconhecida_nao_chama_o_gerador(tmp_path: Path):
+    saida = tmp_path / "propostas.jsonl"
+    omissoes = tmp_path / "omissoes.jsonl"
+    falhas = tmp_path / "falhas.jsonl"
+    chunk_com_tabela = Chunk(
+        chunk_id="c1",
+        doc="protocolo.docx",
+        pagina=5,
+        secao="3. Intensidade",
+        texto=TABELA_DE_INTENSIDADE,
+    )
+    gerar, chamadas = _gerador_que_conta_chamadas(_uma_regra())
+
+    resumo = processar([chunk_com_tabela], gerar, saida, omissoes, falhas)
+
+    assert chamadas["total"] == 0
+    assert resumo["chunks_via_tabela"] == 1
+    assert resumo["chunks_via_modelo"] == 0
+    assert resumo["regras_via_tabela"] == 5
+    assert resumo["regras"] == 5
+    propostas = ler_jsonl(saida)
+    assert len(propostas) == 5
+    assert all(p["origem"] == "tabela" for p in propostas)
+
+
+def test_chunk_sem_tabela_chama_o_gerador_normalmente(tmp_path: Path):
+    saida = tmp_path / "propostas.jsonl"
+    omissoes = tmp_path / "omissoes.jsonl"
+    falhas = tmp_path / "falhas.jsonl"
+    gerar, chamadas = _gerador_que_conta_chamadas(_uma_regra())
+
+    resumo = processar([_chunk()], gerar, saida, omissoes, falhas)
+
+    assert chamadas["total"] == 1
+    assert resumo["chunks_via_tabela"] == 0
+    assert resumo["chunks_via_modelo"] == 1
+    assert resumo["regras_via_modelo"] == 1
+    propostas = ler_jsonl(saida)
+    assert propostas[0]["origem"] == "modelo"
+
+
+def test_linhas_de_tabela_ignoradas_contam_mesmo_quando_o_chunk_vai_para_o_modelo(tmp_path: Path):
+    # Um chunk cuja unica tabela e a de dados historicos (nao produz regra)
+    # ainda deve cair no modelo -- e a contagem de linhas ignoradas precisa
+    # aparecer no resumo mesmo assim, senao ela fica invisivel justamente no
+    # caso em que mais importa (task-19-brief).
+    saida = tmp_path / "propostas.jsonl"
+    omissoes = tmp_path / "omissoes.jsonl"
+    falhas = tmp_path / "falhas.jsonl"
+    texto_com_tabela_historica = (
+        "|Cidades|N de evento|Data|Limiar|CAD|\n"
+        "|---|---|---|---|---|\n"
+        "|Januaria|3|08/12/2023 - 45mm|40mm|2|\n"
+    )
+    chunk = Chunk(chunk_id="c1", doc="protocolo.docx", pagina=2, secao="2. Historico", texto=texto_com_tabela_historica)
+    gerar, chamadas = _gerador_que_conta_chamadas({"regras": []})
+
+    resumo = processar([chunk], gerar, saida, omissoes, falhas)
+
+    assert chamadas["total"] == 1
+    assert resumo["linhas_de_tabela_ignoradas"] == 1
+    assert resumo["chunks_via_modelo"] == 1

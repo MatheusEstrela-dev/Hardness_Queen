@@ -47,6 +47,15 @@ Nivel = Literal["verde", "amarelo", "laranja", "vermelho", "roxo", "fraca", "mod
 Status = Literal["ok", "suspeito"]
 Veredito = Literal["aprovado", "rejeitado", "corrigido"]
 
+# De onde a regra veio: "tabela" quando ingestao/tabelas.py leu uma linha de
+# markdown por regra de codigo, "modelo" quando o Qwen inferiu a partir de
+# prosa. So existe em Regra, nunca em RegraExtraida -- o modelo nunca produz
+# a propria procedencia, e o parser de tabela tambem nao inventa a dele: quem
+# atribui e o script, o mesmo lugar que ja atribui fonte_doc/fonte_pagina/
+# fonte_secao. Serve ao portao humano: uma regra de tabela merece confianca
+# diferente de uma inferida, e o revisor pode priorizar por isso.
+Origem = Literal["tabela", "modelo"]
+
 
 class RegraExtraida(BaseModel):
     """Exatamente o que o modelo produz. A procedencia de arquivo nao passa
@@ -131,6 +140,7 @@ class Regra(RegraExtraida):
     fonte_doc: str
     fonte_pagina: int | None
     fonte_secao: str | None
+    origem: Origem
     status: Status
     motivo_suspeita: str | None = None
 

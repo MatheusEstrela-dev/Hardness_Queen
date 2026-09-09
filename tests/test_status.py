@@ -29,6 +29,7 @@ def _regra_proposta(**sobrescritas) -> dict:
         "fonte_doc": "doc.docx",
         "fonte_pagina": None,
         "fonte_secao": "secao 1",
+        "origem": "modelo",
         "status": "ok",
         "motivo_suspeita": None,
     }
@@ -74,6 +75,30 @@ def test_regras_imprime_contagem_por_escala(tmp_path, monkeypatch, capsys):
         if linha.strip().startswith("escala ")
     }
     assert linhas_de_escala == {"alerta_cor": 2, "intensidade": 1}
+
+
+def test_regras_imprime_contagem_por_origem(tmp_path, monkeypatch, capsys):
+    propostas, _pasta_chunks = _preparar_pastas(tmp_path, monkeypatch)
+    monkeypatch.setattr(status, "DECISOES", tmp_path / "decisoes.jsonl")
+    monkeypatch.setattr(status, "APROVADAS", tmp_path / "aprovadas.jsonl")
+    _escrever_jsonl(
+        propostas,
+        [
+            _regra_proposta(regra_id="r1", origem="tabela"),
+            _regra_proposta(regra_id="r2", origem="tabela"),
+            _regra_proposta(regra_id="r3", origem="modelo"),
+        ],
+    )
+
+    status.regras()
+
+    saida = capsys.readouterr().out
+    linhas_de_origem = {
+        linha.split()[1]: int(linha.split()[2])
+        for linha in saida.splitlines()
+        if linha.strip().startswith("origem ")
+    }
+    assert linhas_de_origem == {"tabela": 2, "modelo": 1}
 
 
 def test_reclassificar_marca_suspeito_regra_ok_cujos_numeros_nao_estao_no_trecho(tmp_path, monkeypatch, capsys):

@@ -96,6 +96,8 @@ def regras() -> None:
         print(f"  escala {escala:14} {quantidade}")
     for nivel, quantidade in _contar(propostas, "nivel"):
         print(f"  nivel {nivel:14} {quantidade}")
+    for origem, quantidade in _contar(propostas, "origem"):
+        print(f"  origem {origem:13} {quantidade}")
 
     suspeitas = [r for r in propostas if r["status"] == "suspeito"]
     if suspeitas:

@@ -4,6 +4,7 @@ from typing import Callable
 from ingestao.contrato import Chunk, Extracao, Regra
 from ingestao.identidade import regra_id
 from ingestao.persistencia import anexar_jsonl, ids_ja_vistos
+from ingestao.tabelas import extrair_de_tabelas
 from ingestao.validacao import classificar, suspeito_de_omissao
 
 # Modelo de producao: scripts/04_extrair_regras.py chama
@@ -79,6 +80,7 @@ def extrair_do_chunk(chunk: Chunk, gerar: Callable[[str], str]) -> list[Regra]:
                 fonte_doc=chunk.doc,
                 fonte_pagina=chunk.pagina,
                 fonte_secao=chunk.secao,
+                origem="modelo",
                 status=status,
                 motivo_suspeita=motivo,
             )
@@ -106,10 +108,15 @@ def processar(
     resumo = {
         "chunks_processados": 0,
         "chunks_pulados": 0,
+        "chunks_via_tabela": 0,
+        "chunks_via_modelo": 0,
         "regras": 0,
+        "regras_via_tabela": 0,
+        "regras_via_modelo": 0,
         "suspeitas": 0,
         "omissoes": 0,
         "falhas": 0,
+        "linhas_de_tabela_ignoradas": 0,
     }
     for chunk in chunks:
         if chunk.chunk_id in ja_feitos:
@@ -117,7 +124,30 @@ def processar(
             continue
 
         try:
-            regras = extrair_do_chunk(chunk, gerar)
+            # O parser de tabela roda primeiro em todo chunk: e barato (sem
+            # GPU, sem chamada de modelo) e a tabela e a fonte de autoridade
+            # quando presente. Se ele reconhecer alguma regra, o modelo e
+            # pulado para este chunk -- economiza os ~140s por chunk da
+            # geracao e evita duas fontes contraditorias sobre o mesmo
+            # conteudo. Custo consciente dessa troca: um chunk com tabela E
+            # limiar solto em prosa no mesmo texto tera so a tabela lida: a
+            # prosa nao perde recall por isso, porque suspeito_de_omissao
+            # roda embaixo sobre chunk.texto inteiro, independente de qual
+            # caminho produziu as regras.
+            regras_de_tabela, linhas_ignoradas = extrair_de_tabelas(chunk)
+            # Contado sempre, mesmo quando o chunk acaba indo para o modelo
+            # (nenhuma tabela reconhecida): senao "nao achou nada" ficaria
+            # indistinguivel de "nao havia nada", o proprio erro que este
+            # projeto existe para evitar (task-19-brief).
+            resumo["linhas_de_tabela_ignoradas"] += linhas_ignoradas
+            if regras_de_tabela:
+                regras = regras_de_tabela
+                resumo["chunks_via_tabela"] += 1
+                resumo["regras_via_tabela"] += len(regras_de_tabela)
+            else:
+                regras = extrair_do_chunk(chunk, gerar)
+                resumo["chunks_via_modelo"] += 1
+                resumo["regras_via_modelo"] += len(regras)
         except Exception as erro:
             # Exception, nao BaseException: KeyboardInterrupt e SystemExit
             # precisam continuar propagando para o operador poder parar um

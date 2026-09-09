@@ -147,19 +147,56 @@ def test_faixa_sem_nenhum_extremo_e_rejeitada():
         RegraExtraida(**payload)
 
 
+def _regra_completa(**sobrescritas) -> Regra:
+    payload = {
+        "regra_id": "r1",
+        "chunk_id": "c1",
+        "fonte_doc": "laudo.pdf",
+        "fonte_pagina": 12,
+        "fonte_secao": "4.2 Caracterizacao do solo",
+        "origem": "modelo",
+        "status": "ok",
+    }
+    payload.update(sobrescritas)
+    return Regra(**_regra_valida(), **payload)
+
+
 def test_regra_carrega_procedencia_e_status():
-    regra = Regra(
-        **_regra_valida(),
-        regra_id="r1",
-        chunk_id="c1",
-        fonte_doc="laudo.pdf",
-        fonte_pagina=12,
-        fonte_secao="4.2 Caracterizacao do solo",
-        status="ok",
-    )
+    regra = _regra_completa()
 
     assert regra.fonte_pagina == 12
     assert regra.motivo_suspeita is None
+
+
+def test_regra_exige_origem():
+    payload = {
+        "regra_id": "r1",
+        "chunk_id": "c1",
+        "fonte_doc": "laudo.pdf",
+        "fonte_pagina": 12,
+        "fonte_secao": "4.2 Caracterizacao do solo",
+        "status": "ok",
+    }
+
+    with pytest.raises(ValidationError):
+        Regra(**_regra_valida(), **payload)
+
+
+def test_regra_rejeita_origem_desconhecida():
+    with pytest.raises(ValidationError):
+        _regra_completa(origem="ocr")
+
+
+def test_regra_aceita_origem_tabela():
+    regra = _regra_completa(origem="tabela")
+
+    assert regra.origem == "tabela"
+
+
+def test_regra_aceita_origem_modelo():
+    regra = _regra_completa(origem="modelo")
+
+    assert regra.origem == "modelo"
 
 
 def test_chunk_aceita_pagina_nula():

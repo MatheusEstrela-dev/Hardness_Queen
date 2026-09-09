@@ -25,6 +25,7 @@ def _regra(regra_id: str, valor_min: float | None = 100.0, valor_max: float | No
         "fonte_doc": "laudo.pdf",
         "fonte_pagina": 12,
         "fonte_secao": "4.2 Caracterizacao do solo",
+        "origem": "modelo",
         "status": "ok",
         "motivo_suspeita": None,
     }
@@ -174,3 +175,11 @@ def test_pagina_mostra_escala_na_grade_de_campos(ambiente):
     resposta = cliente.get("/")
 
     assert "escala" in resposta.text
+
+
+def test_pagina_mostra_origem_na_grade_de_campos(ambiente):
+    cliente, _, _ = ambiente
+
+    resposta = cliente.get("/")
+
+    assert "origem" in resposta.text
