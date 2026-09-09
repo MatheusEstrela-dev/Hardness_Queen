@@ -69,6 +69,26 @@ def test_instrucao_orienta_entidade_estado_para_limiar_sem_entidade_propria():
     assert "minas gerais" in INSTRUCAO
 
 
+def test_texto_do_chunk_vem_antes_da_instrucao_no_prompt():
+    # Regressao: uma versao anterior do prompt colocava ~3400 caracteres de
+    # instrucao antes do texto do documento, e o modelo respondia lista vazia
+    # mesmo com limiares evidentes no trecho (ver task-11-report.md). O texto
+    # do chunk precisa aparecer antes de qualquer instrucao de extracao.
+    prompt = montar_prompt(_chunk())
+
+    assert prompt.index(TEXTO) < prompt.index("Extraia TODOS")
+
+
+def test_prompt_fica_curto_para_chunk_pequeno():
+    # Regressao: a instrucao chegou a ~3400 caracteres antes do texto entrar
+    # no prompt. Um chunk pequeno nao deveria produzir um prompt inchado --
+    # cada linha extra de instrucao compete com o documento pela atencao do
+    # modelo.
+    prompt = montar_prompt(_chunk())
+
+    assert len(prompt) < 1200
+
+
 def test_extrair_anexa_procedencia_que_nao_veio_do_modelo():
     regras = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
 
