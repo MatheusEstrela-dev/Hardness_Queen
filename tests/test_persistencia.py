@@ -78,3 +78,47 @@ def test_documento_nao_registrado_nao_esta_inalterado(tmp_path: Path):
     manifesto = tmp_path / "manifesto.jsonl"
 
     assert documento_inalterado(manifesto, "novo.pdf", "h1") is False
+
+
+def test_documento_com_erro_extracao_nunca_esta_inalterado(tmp_path: Path):
+    manifesto = tmp_path / "manifesto.jsonl"
+    registrar_documento(manifesto, "laudo.pdf", "h1", "erro_extracao", 0, 0)
+
+    assert documento_inalterado(manifesto, "laudo.pdf", "h1") is False
+
+
+def test_documento_texto_nativo_com_mesmo_hash_esta_inalterado(tmp_path: Path):
+    manifesto = tmp_path / "manifesto.jsonl"
+    registrar_documento(manifesto, "laudo.pdf", "h1", "texto_nativo", 10, 10)
+
+    assert documento_inalterado(manifesto, "laudo.pdf", "h1") is True
+
+
+def test_documento_ocr_aplicado_com_mesmo_hash_esta_inalterado(tmp_path: Path):
+    manifesto = tmp_path / "manifesto.jsonl"
+    registrar_documento(manifesto, "laudo.pdf", "h1", "ocr_aplicado", 10, 10)
+
+    assert documento_inalterado(manifesto, "laudo.pdf", "h1") is True
+
+
+def test_documento_sem_camada_texto_com_mesmo_hash_esta_inalterado(tmp_path: Path):
+    manifesto = tmp_path / "manifesto.jsonl"
+    registrar_documento(manifesto, "laudo.pdf", "h1", "sem_camada_texto", 10, 0)
+
+    assert documento_inalterado(manifesto, "laudo.pdf", "h1") is True
+
+
+def test_falha_depois_sucesso_a_entrada_mais_recente_prevalece(tmp_path: Path):
+    manifesto = tmp_path / "manifesto.jsonl"
+    registrar_documento(manifesto, "laudo.pdf", "h1", "erro_extracao", 0, 0)
+    registrar_documento(manifesto, "laudo.pdf", "h1", "texto_nativo", 10, 10)
+
+    assert documento_inalterado(manifesto, "laudo.pdf", "h1") is True
+
+
+def test_sucesso_depois_falha_a_entrada_mais_recente_prevalece(tmp_path: Path):
+    manifesto = tmp_path / "manifesto.jsonl"
+    registrar_documento(manifesto, "laudo.pdf", "h1", "texto_nativo", 10, 10)
+    registrar_documento(manifesto, "laudo.pdf", "h1", "erro_extracao", 0, 0)
+
+    assert documento_inalterado(manifesto, "laudo.pdf", "h1") is False
