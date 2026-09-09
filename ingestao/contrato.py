@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 Dominio = Literal["geologia", "hidrologia", "meteorologia"]
 EntidadeTipo = Literal["tipo_solo", "bacia", "estacao", "municipio", "regiao", "estado"]
@@ -49,7 +49,27 @@ class RegraExtraida(BaseModel):
     nivel: Nivel
     valor_min: float | None
     valor_max: float | None
-    fonte_trecho: str
+    # Um excerto serve para um humano confirmar um numero e para
+    # trecho_confere localiza-lo no chunk de origem -- nenhuma das duas
+    # coisas precisa de centenas de caracteres. Os limiares genuinos deste
+    # acervo citam algo como "podendo variar entre 6 mm e 30 mm em uma
+    # hora" (46 caracteres) ou "Previsao ou ocorrencia de acumulados entre
+    # 30 mm e 70 mm em 1 hora" (68 caracteres); 100 deixa folga confortavel
+    # acima disso. Ao mesmo tempo, isso torna impossivel copiar uma linha
+    # da tabela de eventos historicos de PROTOCOLO_ALERTAS_METEORO.docx (9
+    # linhas x 7 colunas, celulas multi-linha em <br>), cuja linha mais
+    # curta tem 87 caracteres e a mais longa 145 -- foi copiar uma dessas
+    # linhas que esgotou o orcamento de tokens antes do JSON fechar
+    # (task-16). O minimo de 10 barra uma citacao vazia ou de duas
+    # palavras soltas ("6 mm"), que nao verifica nada.
+    #
+    # O bound entra no JSON schema (minLength/maxLength) que outlines usa
+    # para montar a gramatica de decodificacao -- constrangimento
+    # estrutural, nao pedido no prompt. Confirmado em
+    # outlines_core.build_regex_from_schema: o regex gerado para uma string
+    # com esses bounds usa repeticao limitada, ex. "{10,100}", entao o
+    # decodificador nao tem caminho para emitir um token alem do teto.
+    fonte_trecho: str = Field(min_length=10, max_length=100)
 
     @model_validator(mode="after")
     def _exige_pelo_menos_um_extremo(self) -> "RegraExtraida":

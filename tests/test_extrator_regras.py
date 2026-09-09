@@ -269,3 +269,57 @@ def test_reexecucao_pula_chunk_ja_marcado_como_falha(tmp_path: Path):
 
     assert resumo["chunks_pulados"] == 1
     assert resumo["falhas"] == 0
+
+
+def _gerador_com_saida_truncada(textos_que_truncam: set[str], payload: dict):
+    # Diferente de _gerador_com_falha (que simula a falha com um
+    # RuntimeError deliberado), este gerador reproduz a forma exata do
+    # defeito real (task-16): a geracao bate no teto de tokens no meio de
+    # uma string, entao o JSON devolvido nao fecha as aspas nem os
+    # colchetes. O erro que processar precisa engolir aqui vem de dentro de
+    # Extracao.model_validate_json (pydantic_core.ValidationError), nao de
+    # uma excecao que o proprio gerador levanta.
+    def gerar(prompt: str) -> str:
+        for texto in textos_que_truncam:
+            if texto in prompt:
+                bruto = json.dumps(payload, ensure_ascii=False)
+                return bruto[: len(bruto) // 2]
+        return json.dumps(payload, ensure_ascii=False)
+
+    return gerar
+
+
+def test_json_truncado_no_meio_de_uma_string_vira_falha_registrada_e_nao_para_o_lote(tmp_path: Path):
+    saida = tmp_path / "propostas.jsonl"
+    omissoes = tmp_path / "omissoes.jsonl"
+    falhas = tmp_path / "falhas.jsonl"
+    chunk_truncado = _chunk("c1")
+    chunk_bom_1 = Chunk(
+        chunk_id="c2",
+        doc="laudo.pdf",
+        pagina=13,
+        secao="4.3 Outra secao",
+        texto="outro trecho qualquer",
+    )
+    chunk_bom_2 = Chunk(
+        chunk_id="c3",
+        doc="laudo.pdf",
+        pagina=14,
+        secao="4.4 Mais uma secao",
+        texto="ainda outro trecho",
+    )
+
+    resumo = processar(
+        [chunk_truncado, chunk_bom_1, chunk_bom_2],
+        _gerador_com_saida_truncada({chunk_truncado.texto}, _uma_regra()),
+        saida,
+        omissoes,
+        falhas,
+    )
+
+    assert resumo["falhas"] == 1
+    assert resumo["chunks_processados"] == 2
+    registros = ler_jsonl(falhas)
+    assert len(registros) == 1
+    assert registros[0]["chunk_id"] == "c1"
+    assert len(ler_jsonl(saida)) == 2

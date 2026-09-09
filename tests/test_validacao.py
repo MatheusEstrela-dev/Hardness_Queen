@@ -229,10 +229,7 @@ def test_extremos_citados_aceita_minimo_nulo_com_maximo_presente():
 def test_classificar_marca_extremos_nao_citados_mesmo_com_trecho_real():
     # regressao: a fabricacao real do documento -- faixa plausivel, trecho
     # genuino do chunk, mas sem nenhum dos numeros da faixa.
-    chunk = (
-        "Situacao de Perigo, a severidade e alta. Representando uma "
-        "significante ameaca a vida ou a propriedade."
-    )
+    chunk = "Situacao de Perigo, a severidade e alta. Ameaca a vida ou a propriedade."
     regra = _regra(
         grandeza="chuva_acumulada",
         unidade="mm",

@@ -55,10 +55,7 @@ def test_reclassificar_marca_suspeito_regra_ok_cujos_numeros_nao_estao_no_trecho
             _regra_proposta(
                 valor_min=26.0,
                 valor_max=50.0,
-                fonte_trecho=(
-                    "Situacao de Perigo, a severidade e alta. Representando uma "
-                    "significante ameaca a vida ou a propriedade."
-                ),
+                fonte_trecho="Situacao de Perigo, a severidade e alta. Ameaca a vida ou a propriedade.",
                 status="ok",
                 motivo_suspeita=None,
             )
@@ -72,10 +69,7 @@ def test_reclassificar_marca_suspeito_regra_ok_cujos_numeros_nao_estao_no_trecho
                 "doc": "doc.docx",
                 "pagina": None,
                 "secao": "secao 1",
-                "texto": (
-                    "Situacao de Perigo, a severidade e alta. Representando uma "
-                    "significante ameaca a vida ou a propriedade."
-                ),
+                "texto": "Situacao de Perigo, a severidade e alta. Ameaca a vida ou a propriedade.",
             }
         ],
     )

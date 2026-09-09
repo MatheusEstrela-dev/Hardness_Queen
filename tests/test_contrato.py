@@ -110,3 +110,37 @@ def test_chunk_aceita_pagina_nula():
     chunk = Chunk(chunk_id="c1", doc="laudo.docx", pagina=None, secao="1 Introducao", texto="x")
 
     assert chunk.pagina is None
+
+
+def test_fonte_trecho_mais_longo_que_o_teto_e_rejeitado():
+    # Regressao: um chunk com uma tabela de eventos (9 linhas x 7 colunas,
+    # celulas multi-linha em <br>) fez o modelo copiar uma linha inteira em
+    # fonte_trecho, esgotando o orcamento de tokens antes do JSON fechar
+    # (task-16). Uma linha dessa tabela tem 87-145 caracteres; o teto
+    # precisa tornar isso estruturalmente impossivel.
+    payload = _regra_valida(
+        fonte_trecho=(
+            "Teofilo Otoni|3|15/12/2017 - 186 mm; 02/02/2018 - 35,2 mm; "
+            "25/11/2022 - 264,8 mm|Max 120h 175,8|110 mm|Vale do Mucuri|15"
+        )
+    )
+
+    with pytest.raises(ValidationError):
+        RegraExtraida(**payload)
+
+
+def test_fonte_trecho_mais_curto_que_o_minimo_e_rejeitado():
+    # Uma citacao de poucos caracteres nao verifica nada -- nem da pra um
+    # revisor humano achar o numero no documento original com ela.
+    payload = _regra_valida(fonte_trecho="6 mm")
+
+    with pytest.raises(ValidationError):
+        RegraExtraida(**payload)
+
+
+def test_fonte_trecho_realista_cabe_confortavelmente_no_teto():
+    payload = _regra_valida(fonte_trecho="podendo variar entre 6 mm e 30 mm em uma hora")
+
+    regra = RegraExtraida(**payload)
+
+    assert regra.fonte_trecho == "podendo variar entre 6 mm e 30 mm em uma hora"

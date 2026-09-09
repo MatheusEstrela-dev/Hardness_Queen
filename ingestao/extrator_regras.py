@@ -17,7 +17,23 @@ from ingestao.validacao import classificar, suspeito_de_omissao
 # producao executa.
 MODELO_PADRAO = "Qwen/Qwen2.5-7B-Instruct"
 SEMENTE = 42
-MAX_TOKENS_DE_SAIDA = 1024
+
+# Segunda linha de defesa contra saida truncada, alem do teto estrutural de
+# fonte_trecho em ingestao/contrato.py (task-16). Uma regra com fonte_trecho
+# no teto de 100 caracteres serializa em ~320 caracteres de JSON, que o
+# tokenizer do Qwen2.5-7B-Instruct mede em ~120 tokens (medido direto:
+# tests/test_extracao_real.py usa o mesmo modelo). Uma pagina densa de
+# limiares (ex.: a tabela de intensidade deste acervo, 5 niveis, ou uma
+# escala normativa cruzando nivel x grandeza) pode legitimamente render ate
+# ~20 regras -- 20 * 120 =~ 2400 tokens. 4096 da quase o dobro de folga
+# sobre essa estimativa, para prosa mais verbosa entre as regras ou uma
+# pagina ainda mais densa. Se mesmo assim a geracao bater nesse teto, o
+# JSON vem truncado e Extracao.model_validate_json levanta ValidationError
+# dentro de extrair_do_chunk -- processar() ja captura isso por chunk (ver
+# processar()), grava o chunk em falhas.jsonl com o motivo e segue para o
+# proximo chunk. Ou seja: bater no teto agora vira uma falha registrada e
+# recuperavel, nao um lote inteiro abortado.
+MAX_TOKENS_DE_SAIDA = 4096
 
 INSTRUCAO = """Voce extrai limiares tecnicos de laudos da Defesa Civil.
 
