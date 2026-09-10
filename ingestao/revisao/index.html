@@ -5,10 +5,13 @@
 <title>Revisao de limiares</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
+  .resumo-fontes { font-weight: 600; margin: 0 0 .5rem; }
+  .fonte { margin-bottom: .75rem; }
   .trecho { background: #fffbe6; border-left: 4px solid #e0b400; padding: 1rem; font-size: 1.1rem; }
+  .proveniencia { font-size: .8rem; color: #666; margin: .35rem 0 0; }
   .campos { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem 1rem; margin: 1rem 0; }
   .campo strong { display: block; font-size: .75rem; color: #666; text-transform: uppercase; }
-  .suspeito { background: #ffe6e6; border-left: 4px solid #cc0000; padding: .5rem 1rem; }
+  .suspeito { background: #ffe6e6; border-left: 4px solid #cc0000; padding: .5rem 1rem; margin-top: .35rem; }
   .acoes { display: flex; gap: .5rem; align-items: center; }
   button { padding: .5rem 1rem; font-size: 1rem; cursor: pointer; }
   #fim { display: none; }
@@ -19,7 +22,7 @@
 <p id="contador"></p>
 
 <div id="cartao">
-  <div class="trecho" id="trecho"></div>
+  <div id="fontes"></div>
   <div class="suspeito" id="motivo" hidden></div>
   <div class="campos" id="campos"></div>
   <div class="acoes">
@@ -60,13 +63,20 @@ function mostrar() {
   document.getElementById("fim").style.display = atual ? "none" : "block";
   if (!atual) return;
 
-  document.getElementById("trecho").textContent = atual.fonte_trecho;
+  renderizarFontes(atual);
+
+  // O status do grupo e "suspeito" se QUALQUER fonte for suspeita (ver
+  // agrupamento.py, agrupar_por_limiar). O motivo de cada fonte suspeita
+  // aparece junto do trecho dela em renderizarFontes -- este aviso aqui e
+  // so o sinal de que o grupo merece atencao redobrada antes de decidir.
   const motivo = document.getElementById("motivo");
   motivo.hidden = atual.status !== "suspeito";
-  motivo.textContent = atual.motivo_suspeita || "";
+  motivo.textContent = atual.status === "suspeito"
+    ? "Uma ou mais fontes deste grupo foram marcadas como suspeitas -- confira os trechos acima."
+    : "";
 
-  const ordem = ["faixa", "unidade", "entidade_nome", "escala", "nivel", "janela_horas",
-                 "dominio", "grandeza", "origem", "fonte_doc", "fonte_pagina", "fonte_secao"];
+  const ordem = ["faixa", "unidade", "escala", "nivel", "janela_horas",
+                 "dominio", "grandeza", "entidade_nome"];
   const campos = document.getElementById("campos");
   campos.textContent = "";
   for (const campo of ordem) {
@@ -78,6 +88,52 @@ function mostrar() {
     div.appendChild(rotulo);
     div.appendChild(document.createTextNode(String(valor)));
     campos.appendChild(div);
+  }
+}
+
+function renderizarFontes(grupo) {
+  // A evidencia vem ANTES dos campos extraidos (ver mostrar(), que chama
+  // esta funcao antes de preencher #campos): na ordem inversa o revisor
+  // tende a confirmar o numero que ja esta na tela, e um portao que so
+  // confirma nao e portao. Com mais de uma fonte, mostrar todas as
+  // citacoes e exatamente o motivo deste agrupamento existir -- um revisor
+  // vendo o mesmo limiar afirmado em tres documentos e o sinal que a
+  // repeticao carregava e que a fila antiga escondia.
+  const container = document.getElementById("fontes");
+  container.textContent = "";
+
+  const resumo = document.createElement("p");
+  resumo.className = "resumo-fontes";
+  const docs = grupo.fontes.map(fonte => fonte.fonte_doc).join(", ");
+  resumo.textContent = grupo.total_fontes > 1
+    ? `${grupo.total_fontes} fontes corroboram este limiar: ${docs}`
+    : `1 fonte: ${docs}`;
+  container.appendChild(resumo);
+
+  for (const fonte of grupo.fontes) {
+    const bloco = document.createElement("div");
+    bloco.className = "fonte";
+
+    const trecho = document.createElement("div");
+    trecho.className = "trecho";
+    trecho.textContent = fonte.fonte_trecho;
+    bloco.appendChild(trecho);
+
+    if (fonte.status === "suspeito") {
+      const motivoFonte = document.createElement("div");
+      motivoFonte.className = "suspeito";
+      motivoFonte.textContent = fonte.motivo_suspeita || "";
+      bloco.appendChild(motivoFonte);
+    }
+
+    const proveniencia = document.createElement("div");
+    proveniencia.className = "proveniencia";
+    const pagina = fonte.fonte_pagina ?? "-";
+    proveniencia.textContent =
+      `${fonte.fonte_doc} - pagina ${pagina} - ${fonte.fonte_secao ?? "-"} - origem: ${fonte.origem} - status: ${fonte.status}`;
+    bloco.appendChild(proveniencia);
+
+    container.appendChild(bloco);
   }
 }
 
@@ -108,7 +164,11 @@ async function decidir(veredito, valorMinCorrigido, valorMaxCorrigido) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        regra_id: atual.regra_id,
+        // Uma decisao vale para o grupo inteiro: todo regra_id de toda
+        // fonte que corrobora este limiar recebe o mesmo veredito, o mesmo
+        // revisor e o mesmo timestamp (o servidor grava um registro por
+        // regra_id em decisoes.jsonl -- ver app.py, decidir()).
+        regra_ids: atual.fontes.map(fonte => fonte.regra_id),
         veredito: veredito,
         valor_min_corrigido: valorMinCorrigido ?? null,
         valor_max_corrigido: valorMaxCorrigido ?? null,
