@@ -51,38 +51,75 @@ FLUXO B -- alerta (o que consome o banco)
 | 01 gerar dataset | gera exemplos de treino a partir de regras deterministicas | funcionando (6 exemplos) |
 | 02 treinar modelo | QLoRA 4-bit do Qwen2.5-3B na T1000 | funcionando (adaptador salvo) |
 | 03 extrair texto | PDF/DOCX para chunks com procedencia | **implementado e testado** |
-| 04 extrair regras | chunks para JSON estruturado via LLM local | em implementacao |
-| 05 revisar | fila web local de conferencia humana | em implementacao |
+| 04 extrair regras | chunks para JSON estruturado via LLM local | **implementado e testado** |
+| 05 revisar | fila web local de conferencia humana | **implementado e testado** |
 | 06 carregar | carga no PostGIS da Cedec | **bloqueado** (ver Pendencias) |
 
-`33 testes passando`, sem warnings.
+`157 testes passando`, sem warnings (1 teste marcado `gpu` e deselecionado por padrao -- exige a T1000 e o modelo baixado, roda com `just test-gpu`).
 
 ## Como rodar
 
 Requer o ambiente virtual em `venv/`. Todo comando usa `venv/Scripts/python.exe` —
 nunca o Python global.
 
-Com [just](https://github.com/casey/just) instalado, `just` sozinho lista tudo:
+Com [just](https://github.com/casey/just) instalado, `just` sozinho abre o painel de
+comandos agrupado por fluxo, e `just --list` lista tudo por grupo.
+
+Comece sempre por aqui:
+
+```
+just doctor          # GPU, versoes pregadas, OCR e artefatos, de uma vez
+```
+
+Ambiente:
 
 ```
 just gpu             # a T1000 esta visivel? o que ela suporta?
-just deps            # versoes do stack (o que costuma quebrar a API)
-just test            # suite de testes
-just test-gpu        # inclui os testes que exigem GPU e modelo baixado
+just deps            # versoes do stack, e avisa se transformers/trl divergiram
+just tesseract       # o OCR existe? sem ele, laudo digitalizado nao e lido
+just artefatos       # quais arquivos da esteira ja existem
+```
 
+Ingestao (etapas 03, 04 e 05):
+
+```
+just docs-status     # quantos PDF/DOCX esperam em docs/
+just extrair-texto   # etapa 03: docs/ -> data/chunks/*.jsonl
+just extrair-regras  # etapa 04: chunks -> regras propostas (LENTO, Qwen 7B local)
+just revisar         # etapa 05: sobe a fila de revisao em http://127.0.0.1:8100
+just ingestao        # esteira completa: extrair-texto + extrair-regras + revisar, em sequencia
+just chunks-stats    # o que a etapa 03 produziu, por documento
+just regras-stats    # o que a etapa 04 propos, suspeitas e pendentes de revisao
+just omissoes-stats  # chunks com padrao de limiar e zero regras extraidas
+just manifesto-stats # estado de cada documento processado
+```
+
+Treino (etapas 01 e 02):
+
+```
 just dataset         # etapa 01: gera data/dataset_treino.jsonl
 just dataset-stats   # quantos exemplos existem hoje
 just train           # etapa 02: treina o adaptador LoRA
-just adapter         # mostra o adaptador treinado que esta salvo
+just all             # dataset + train em sequencia
+just adapter         # mostra o adaptador salvo
 just vram            # acompanha uso de VRAM durante o treino
+```
 
-just extrair-texto   # etapa 03: docs/*.pdf -> data/chunks/*.jsonl
+Testes e limpeza:
+
+```
+just test                    # suite completa (exclui os marcados gpu)
+just test-um validacao       # so os testes cujo nome casa com o filtro
+just test-gpu                # os que exigem GPU e modelo baixado
+just clean-adapter           # apaga o adaptador (pede confirmacao)
+just clean-ingestao          # apaga chunks e propostas, PRESERVA as decisoes humanas
 ```
 
 Sem o `just`, cada receita e uma linha so:
 
 ```bash
 venv/Scripts/python.exe scripts/03_extrair_texto.py
+venv/Scripts/python.exe scripts/status.py regras
 venv/Scripts/python.exe -m pytest -v
 ```
 
@@ -122,11 +159,41 @@ Decodificacao restrita a schema garante a **forma** da saida do modelo, nunca a
 
 Ha ainda uma **rede de recall**: um regex varre os chunks e marca os que contem padrao
 de limiar mas produziram zero regras. Sem isso, uma omissao passaria invisivel — ninguem
-revisa o que nao apareceu na lista.
+revisa o que nao apareceu na lista. Essas possiveis omissoes nao entram na fila de revisao
+web (a v1 nao tem endpoint nem tela para isso) — elas aparecem para o operador via
+`just omissoes-stats`, na linha de comando.
 
 Coordenadas nunca sao extraidas pelo modelo. A geometria vem sempre da base
 cartografica da Cedec, por `JOIN`. Pedir latitude a um LLM convida o numero inventado,
 e um par de coordenadas plausivel parece correto na revisao.
+
+## O que o teste com documento real ensinou
+
+Processar documentos normativos reais (nao os PDFs sinteticos de teste) mudou como
+operar a esteira:
+
+- **`.docx` real nao marca titulo com o estilo Heading do Word.** Documentos
+  normativos reais usam paragrafo "Normal" com negrito, maiuscula ou numeracao de
+  secao para sinalizar titulo visualmente. O chunking cai para uma heuristica (negrito
+  total, texto em maiuscula, ou padrao `1.`/`6.2`/`6.2.1` no inicio) mais um teto de
+  tamanho, porque sem teto um documento sem estilo de titulo vira um chunk so — ja
+  medido em mais de 20 mil caracteres, o suficiente para estourar VRAM na etapa 04.
+- **Tabela de `.docx` estava sendo descartada em silencio, e agora nao e mais.**
+  Documento tecnico coloca limiar em tabela; perder a tabela e perder exatamente o
+  dado que a esteira existe para capturar.
+- **A conferencia de excerto verifica se o numero da regra aparece no trecho citado —
+  nao se a regra esta correta.** Uma auditoria manual de 27 regras extraidas de um
+  documento normativo real encontrou apenas 4 cujos numeros realmente apareciam no
+  `fonte_trecho` citado; as outras 23 citavam trecho real do documento, mas sem
+  numero algum. E exatamente por isso que a checagem existe. Regra marcada `ok`
+  significa "os numeros da regra estao na citacao", nao "a regra esta correta" — a
+  conferencia humana continua obrigatoria.
+- **Throughput da etapa 04 gira em 40 a 140 segundos por chunk**, dependendo de
+  quantas regras o chunk rende (ver secao anterior). Nesse ritmo, ingerir um acervo
+  grande de laudos nao e viavel sem trabalho adicional — nao planeje um lote de
+  centenas de documentos assumindo processamento rapido.
+- **Tesseract continua ausente** nesta estacao. PDF sem camada de texto fica retido
+  com `estado="sem_camada_texto"`, nao lido, ate o Tesseract ser instalado.
 
 ## Pendencias e riscos abertos
 
@@ -141,9 +208,12 @@ projetado — o documento fica retido, nao sumido — mas **laudo digitalizado n
 lido enquanto o Tesseract nao existir**. Num acervo de Defesa Civil, boa parte dos
 laudos antigos e imagem.
 
-**Cabimento do Qwen 7B em 4-bit nos 8 GB da T1000** ainda nao foi medido. Estimativa de
-~4,5 GB de pesos mais ativacoes indica folga, mas e estimativa. Se nao couber, a
-alternativa e o 3B-Instruct.
+**Cabimento do Qwen 7B em 4-bit nos 8 GB da T1000 -- medido.** `Qwen2.5-7B-Instruct` em
+4-bit NF4 carrega em **23,2 s** e usa **5,36 GB de 8,0 GB** de VRAM de pico (esse numero
+ja inclui o carregamento do modelo) -- cabe, com folga. Custo por chunk: **50,1 s** num
+chunk leve de limiares (~2 regras), podendo chegar a **~140 s** num chunk denso, com
+varias regras candidatas. Detalhes e metodologia completa na secao 10 da spec
+(`docs/superpowers/specs/2026-09-08-esteira-ingestao-geoespacial-design.md`).
 
 ## Documentacao
 

@@ -30,6 +30,8 @@ Fora: ocorrencias historicas (eventos passados com data e local), que tem nature
 
 Pressuposto confirmado: as camadas geograficas (encostas mapeadas, bacias, limites municipais) ja existem em base acessivel da Defesa Civil. A esteira consome essas geometrias, nao as produz.
 
+Tambem fora da v1: um painel de omissoes na aplicacao web de revisao. Possiveis omissoes (chunk com padrao de limiar e zero regras) sao reportadas somente por `just omissoes-stats`, uma ferramenta de linha de comando para o operador -- nao chegam a fila de revisao humana. Isto e deliberado, nao uma lacuna esquecida (ver secao 11).
+
 ## 4. Contrato de dados
 
 Objeto unico que toda a esteira serve:
@@ -96,22 +98,24 @@ O modelo base `Qwen/Qwen2.5-3B` usado no treino do LoRA nao serve para esta etap
 **JSON garantido por decodificacao restrita**, via `outlines` sobre o modelo `transformers` quantizado:
 
 ```python
-class Regra(BaseModel):
+class RegraExtraida(BaseModel):
     dominio: Literal["geologia", "hidrologia", "meteorologia"]
-    entidade_tipo: Literal["tipo_solo", "bacia", "estacao", "municipio"]
+    entidade_tipo: Literal["tipo_solo", "bacia", "estacao", "municipio", "regiao", "estado"]
     entidade_nome: str
-    grandeza: Literal["chuva_acumulada", "cota", "vazao"]
+    grandeza: Literal["chuva_acumulada", "cota", "vazao", "vento", "vil", "refletividade", "temperatura_topo", "taxa_precipitacao"]
     janela_horas: int | None
-    unidade: Literal["mm", "m", "m3/s"]
-    nivel: Literal["atencao", "critico"]
-    valor: float
-    fonte_trecho: str
+    unidade: Literal["mm", "m", "m3/s", "km/h", "kg/m2", "dBZ", "celsius", "mm/h"]
+    escala: Literal["alerta_cor", "intensidade"]
+    nivel: Literal["verde", "amarelo", "laranja", "vermelho", "roxo", "fraca", "moderada", "forte", "muito_forte", "extremo"]
+    valor_min: float | None
+    valor_max: float | None
+    fonte_trecho: str = Field(min_length=10, max_length=100)
 
 class Extracao(BaseModel):
-    regras: conlist(Regra, min_length=0)
+    regras: list[RegraExtraida]
 ```
 
-O schema declara deliberadamente menos campos que o contrato da secao 4: o modelo produz apenas os campos analiticos mais o `fonte_trecho`, e o script anexa `fonte_doc`, `fonte_pagina` e `fonte_secao` a partir dos metadados do chunk. Alem de reduzir o que o modelo tem de acertar, isso torna impossivel atribuir a regra ao documento ou a pagina errada, porque essa informacao nunca passa pelo modelo.
+`RegraExtraida` e exatamente o que o modelo produz -- o schema declara deliberadamente menos campos que o contrato da secao 4. O script anexa a procedencia (`fonte_doc`, `fonte_pagina`, `fonte_secao`) a partir dos metadados do chunk, alem de `regra_id`, `chunk_id`, `status` e `motivo_suspeita` apos a checagem descrita abaixo. O modelo enriquecido resultante -- o que de fato circula pela revisao e pela carga -- reusa o nome `Regra` (`class Regra(RegraExtraida)`), entao `Regra` na base de codigo nao e o schema que o modelo preenche, e sim o que vem depois dele. Alem de reduzir o que o modelo tem de acertar, isso torna impossivel atribuir a regra ao documento ou a pagina errada, porque essa informacao nunca passa pelo modelo.
 
 A cada token, os que produziriam JSON invalido sao eliminados antes da amostragem. JSON valido deixa de ser um pedido no prompt e passa a ser propriedade estrutural. Os `Literal` eliminam o trabalho de normalizacao posterior: `"Geologia"`, `"geologia "` e `"GEO"` nao sao geraveis. O `min_length=0` permite que um chunk sem regras devolva lista vazia legitimamente.
 
@@ -120,9 +124,9 @@ A cada token, os que produziriam JSON invalido sao eliminados antes da amostrage
 1. **Conferencia por substring.** Se o `fonte_trecho` citado nao aparece no chunk de origem (comparacao normalizada para espacos e markdown), a extracao e marcada `suspeito`. Pega justamente a classe de erro mais perigosa, a citacao inventada.
 2. **Faixa plausivel por dominio.** Valor fora de faixa razoavel para a grandeza e marcado `suspeito`, nunca descartado -- a prioridade e recall, e o portao humano filtra o excesso.
 
-**Decodificacao greedy, temperatura 0.** Nao por qualidade, mas por reprodutibilidade: a revisao humana e caro, e se reexecutar produzisse conjunto diferente de regras, as aprovacoes anteriores ficariam orfas sem sinal algum.
+**Decodificacao greedy, `do_sample=False` explicito.** Nao por qualidade, mas por reprodutibilidade: a revisao humana e cara, e se reexecutar produzisse conjunto diferente de regras, as aprovacoes anteriores ficariam orfas sem sinal algum. Nao se pede isso via `temperature=0`: toda variante Instruct do Qwen2.5 traz `do_sample=True` no `generation_config`, e com `do_sample=True` o `transformers` monta um `TemperatureLogitsWarper` que rejeita `temperature=0` com `ValueError`. `do_sample=False` e a forma correta porque independe do `generation_config` default de qualquer modelo (ver secao 10).
 
-**Rede de recall.** O risco de um 7B e omitir regra, e o portao humano nao pega omissao, porque ninguem revisa o que nao apareceu na lista. Um regex de padrao de limiar varre os chunks e marca os que contem tal padrao mas produziram zero regras. Esses entram na revisao como possivel omissao.
+**Rede de recall.** O risco de um 7B e omitir regra, e o portao humano nao pega omissao, porque ninguem revisa o que nao apareceu na lista. Um regex de padrao de limiar varre os chunks e marca os que contem tal padrao mas produziram zero regras. Esses ficam disponiveis ao operador como possivel omissao (ver secao 3 e secao 11) -- nao entram na fila de revisao humana na v1.
 
 Retomavel por `chunk_id`: esta e a etapa lenta, e uma reinicializacao nao pode custar horas de GPU. Tempo por chunk sera medido na implementacao, nao estimado aqui.
 
@@ -132,7 +136,7 @@ Script: `scripts/05_revisar.py`
 Entrada: `data/regras_propostas.jsonl`
 Saida: `data/decisoes.jsonl` (acumulativo), `data/regras_aprovadas.jsonl`
 
-Aplicacao web local: FastAPI servindo pagina unica, presa em `127.0.0.1`, sem autenticacao e sem banco. Dois endpoints: `GET /` para a fila de pendentes e `POST /decisao`. Dependencias novas: `fastapi`, `uvicorn`.
+Aplicacao web local: FastAPI servindo pagina unica, presa em `127.0.0.1`, sem autenticacao e sem banco. Tres endpoints: `GET /` (a pagina), `GET /api/pendentes` (a fila) e `POST /api/decisao`. Dependencias novas: `fastapi`, `uvicorn`.
 
 A tela apresenta o `fonte_trecho` em destaque com o numero realcado, e os campos extraidos ao lado. **A evidencia vem antes da conclusao da maquina**: na ordem inversa o revisor tende a confirmar o numero que ja esta na tela, e um portao que so confirma nao e portao.
 
@@ -184,9 +188,18 @@ Cada linha resultante e um alerta a ser redigido, e e nesse ponto -- e apenas ne
 
 **Schema da base da Cedec (bloqueia a etapa 06).** O desenho assume que a camada de encostas traz o tipo de solo classificado e que as bacias sao identificaveis pelo nome usado nos laudos. Se a camada nao tiver tipo de solo, o join nao tem por onde casar e sera necessaria uma tabela de ponte mantida a mao. Verificar o schema real antes de escrever a etapa 06. As etapas 03 a 05 nao dependem disso e podem ser construidas antes.
 
-**Tesseract para OCR (degrada a etapa 03).** O OCR do PyMuPDF depende do Tesseract instalado, o que numa estacao corporativa pode nao existir nem ser instalavel. Se faltar, o desenho permanece correto: o documento fica retido com estado `sem_camada_texto` em vez de produzir silenciosamente zero regras.
+**Tesseract para OCR (degrada a etapa 03) -- medido.** Confirmado por execucao real da Task 4: o Tesseract nao esta instalado nesta estacao. Um PDF sem camada de texto fica retido com `estado="sem_camada_texto"` e zero chunks -- o desenho previsto se confirma, o OCR simplesmente nunca dispara. Laudos digitalizados nao serao lidos ate o Tesseract ser instalado nesta maquina.
 
-**Cabimento do 7B em 4-bit nos 8GB da T1000.** Estimativa de cerca de 4,5 GB de pesos mais ativacoes de chunk curto indica folga, mas precisa ser medido. Se nao couber, a alternativa e o 3B-Instruct, com perda de precisao absorvida em parte pelo portao humano.
+**Cabimento do modelo em 4-bit nos 8GB da T1000 -- medido contra o modelo de producao.** O plano previa medir Qwen2.5-7B-Instruct; essa medicao agora esta completa. Os pesos terminaram de baixar apos a sessao anterior (o link desta estacao entrega a CDN da Hugging Face a cerca de 1,71 MB/s agregado, o que tornou o download dos ~15GB do 7B-Instruct lento demais para caber naquela sessao), e a medicao abaixo roda contra o modelo real que `MODELO_PADRAO` aponta, `Qwen/Qwen2.5-7B-Instruct`, em 4-bit NF4 com bf16, na NVIDIA T1000 8GB:
+
+- Carregamento do modelo: **23,2s**.
+- VRAM de pico: **5,36 GB** de 8,0 GB -- cabe, com folga. Este numero **inclui** o carregamento do modelo (pesos 4-bit entrando na GPU) -- e a resposta a pergunta "cabe?".
+- Tempo por chunk: **50,1s** para uma unica extracao (chunk curto, ~2 limiares). Este numero **exclui** o carregamento do modelo -- o cronometro so comeca depois que `criar_gerador_qwen()` retorna -- porque e a resposta a pergunta "quanto custa cada chunk adicional", relevante para um `processar()` que carrega o gerador uma vez e roda em loop sobre muitos chunks.
+- Qualidade de extracao: o trecho de teste com dois limiares produziu as duas regras -- `solo gnaisse 100,0mm critico` e `solo argiloso 80,0mm critico` -- ambas com `status="ok"`.
+- Comparacao com a medicao anterior do **Qwen2.5-3B** (variante base, sem instruction tuning, ja presente em disco por causa do treino de `scripts/02_treinar_modelo.py`): **2,00 GB** de pico e **62,8s** por chunk. Esse tempo do 3B incluia warmup do `outlines_core` -- o Triton nao esta instalado nesta maquina Windows, entao o `torch.compile` do kernel de bitmask cai para modo eager. O 7B-Instruct medir mais rapido por chunk que o 3B nao significa que o 7B seja intrinsecamente mais rapido: e explicado pelo warmup ja absorvido antes desta medicao, nao por uma comparacao de arquitetura.
+- Achado de infraestrutura (seed): a primeira execucao real de `criar_gerador_qwen` (nunca antes executada, so validada por inspecao de assinatura) revelou que `outlines` 1.3.3 repassa `seed` como kwarg de inferencia direto para `transformers.generate()`, que rejeita chaves nao reconhecidas (`ValueError: model_kwargs nao usado: ['seed']`). Corrigido substituindo por `torch.manual_seed(SEMENTE)` na criacao do gerador.
+
+**Defeito de decodificacao gulosa (`temperature=0`) -- resolvido.** A medicao anterior com o Qwen2.5-3B pedia decodificacao gulosa passando `temperature=0` para `transformers.generate()`, e funcionava -- mas por acidente: o `generation_config` que o 3B base traz vem com `do_sample=False`, e com `do_sample=False` o `transformers` ignora `temperature` por completo, entao o valor invalido nunca chegava a ser avaliado. Rodar a mesma chamada contra o `Qwen2.5-7B-Instruct` -- o modelo que `MODELO_PADRAO` de fato aponta -- falhava com `ValueError: `temperature` (=0) has to be a strictly positive float, otherwise your next token scores will be invalid`: toda variante Instruct do Qwen2.5 traz `do_sample=True` e `temperature=0.7` no `generation_config`, e com `do_sample=True` o `transformers` monta um `TemperatureLogitsWarper` que rejeita `temperature=0`. Ou seja, o caminho de producao estava quebrado, e a medicao anterior nunca teria detectado isso porque rodou contra o modelo errado. Corrigido substituindo `temperature=0` por `do_sample=False` explicito em `criar_gerador_qwen` (`ingestao/extrator_regras.py`) -- a forma correta e independente de modelo de pedir decodificacao gulosa, ja que ela nao depende do `do_sample` default de nenhum `generation_config` especifico. Registrado aqui porque e uma armadilha em que qualquer contribuidor futuro pode cair de novo ao trocar de modelo base para Instruct (ou vice-versa) sem revisar o `generation_config` default.
 
 **Vocabulario dos `Literal`.** As listas de `entidade_tipo` e `grandeza` foram derivadas do dicionario `REGRAS` atual e dos exemplos discutidos. Laudos reais podem trazer grandeza fora dessas listas, e nesse caso a decodificacao restrita forcara o modelo ao valor mais proximo em vez de sinalizar o desconhecido. Mitigacao: revisar as listas contra uma amostra real de documentos antes de processar o acervo inteiro.
 
@@ -196,6 +209,6 @@ Cada linha resultante e um alerta a ser redigido, e e nesse ponto -- e apenas ne
 - Um PDF digitalizado sem Tesseract disponivel resulta em documento com estado `sem_camada_texto` no relatorio, e nao em zero regras silencioso.
 - Um `.docx` produz regras com `fonte_pagina` nulo e `fonte_secao` preenchido.
 - Uma extracao cujo `fonte_trecho` nao existe no chunk de origem chega a revisao com status `suspeito`.
-- Um chunk contendo padrao de limiar que produziu zero regras aparece na revisao como possivel omissao.
+- Um chunk contendo padrao de limiar que produziu zero regras e reportado como possivel omissao via `just omissoes-stats` (`scripts/status.py omissoes`). Isto e um relatorio de operador, nao a fila de revisao: a v1 nao tem endpoint nem tela de omissoes na aplicacao web (ver secao 3).
 - Reexecutar a etapa 04 sobre os mesmos chunks produz `regra_id` identicos, e decisoes ja registradas nao reaparecem na fila de revisao.
 - Carregar um limiar revisado para a mesma entidade fecha `vigente_ate` da linha anterior e mantem as duas linhas na tabela.

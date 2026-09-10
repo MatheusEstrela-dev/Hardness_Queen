@@ -1,0 +1,41 @@
+import time
+
+import pytest
+
+from ingestao.contrato import Chunk
+from ingestao.extrator_regras import criar_gerador_qwen, extrair_do_chunk
+
+TEXTO = (
+    "4.2 Caracterizacao do solo. Para o solo gnaisse, a saturacao critica "
+    "ocorre a partir de 100mm de chuva acumulada em 72h. Para o solo argiloso, "
+    "o limiar critico e de 80mm em 72h."
+)
+
+
+@pytest.mark.gpu
+def test_modelo_real_extrai_os_dois_limiares_do_trecho():
+    import torch
+
+    chunk = Chunk(chunk_id="c1", doc="laudo.pdf", pagina=12, secao="4.2 Caracterizacao do solo", texto=TEXTO)
+
+    torch.cuda.reset_peak_memory_stats()
+    # Sem argumento: herda MODELO_PADRAO (Qwen2.5-7B-Instruct), o modelo de
+    # producao real. Antes este teste pinava o 3B base explicitamente porque
+    # os pesos do 7B-Instruct ainda nao tinham terminado de baixar -- isso
+    # foi uma medida temporaria enquanto o download corria, nao uma escolha
+    # definitiva. Com os pesos completos no disco, o teste precisa medir o
+    # que producao de fato executa.
+    gerar = criar_gerador_qwen()
+    inicio = time.time()
+    regras = extrair_do_chunk(chunk, gerar)
+    decorrido = time.time() - inicio
+    pico_gb = torch.cuda.max_memory_allocated() / 1024**3
+
+    print(f"\ntempo por chunk: {decorrido:.1f}s | VRAM pico: {pico_gb:.2f}GB | regras: {len(regras)}")
+
+    assert len(regras) == 2
+    valores = sorted(regra.valor_min for regra in regras)
+    assert valores == [80.0, 100.0]
+    assert all(regra.valor_max is None for regra in regras)
+    assert all(regra.status == "ok" for regra in regras)
+    assert pico_gb < 8.0

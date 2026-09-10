@@ -15,7 +15,9 @@ def regra_id(
     entidade_tipo: str,
     entidade_nome: str,
     grandeza: str,
+    escala: str,
     nivel: str,
-    valor: float,
+    valor_min: float | None,
+    valor_max: float | None,
 ) -> str:
-    return _hash(chunk_id, entidade_tipo, entidade_nome, grandeza, nivel, valor)
+    return _hash(chunk_id, entidade_tipo, entidade_nome, grandeza, escala, nivel, valor_min, valor_max)

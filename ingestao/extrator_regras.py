@@ -1,0 +1,278 @@
+from pathlib import Path
+from typing import Callable
+
+from ingestao.contrato import Chunk, Extracao, Regra
+from ingestao.identidade import regra_id
+from ingestao.persistencia import anexar_jsonl, ids_ja_vistos
+from ingestao.tabelas import extrair_de_tabelas
+from ingestao.validacao import classificar, pode_conter_limiar, suspeito_de_omissao
+
+# Modelo de producao: scripts/04_extrair_regras.py chama
+# criar_gerador_qwen() sem argumento e herda esta constante, entao ela precisa
+# continuar sendo a variante Instruct -- e a que sabe seguir a instrucao de
+# extrair TODOS os limiares, nao so notar que existe um numero no texto.
+#
+# A medicao de VRAM e tempo por chunk contra este modelo (ver secao 10 da
+# spec) foi feita com os pesos completos em disco, em tests/test_extracao_real.py,
+# que chama criar_gerador_qwen() sem argumento para medir exatamente o que
+# producao executa.
+MODELO_PADRAO = "Qwen/Qwen2.5-7B-Instruct"
+SEMENTE = 42
+
+# Segunda linha de defesa contra saida truncada, alem do teto estrutural de
+# fonte_trecho em ingestao/contrato.py (task-16). Uma regra com fonte_trecho
+# no teto de 100 caracteres serializa em ~320 caracteres de JSON, que o
+# tokenizer do Qwen2.5-7B-Instruct mede em ~120 tokens (medido direto:
+# tests/test_extracao_real.py usa o mesmo modelo). Uma pagina densa de
+# limiares (ex.: a tabela de intensidade deste acervo, 5 niveis, ou uma
+# escala normativa cruzando nivel x grandeza) pode legitimamente render ate
+# ~20 regras -- 20 * 120 =~ 2400 tokens. 4096 da quase o dobro de folga
+# sobre essa estimativa, para prosa mais verbosa entre as regras ou uma
+# pagina ainda mais densa. Se mesmo assim a geracao bater nesse teto, o
+# JSON vem truncado e Extracao.model_validate_json levanta ValidationError
+# dentro de extrair_do_chunk -- processar() ja captura isso por chunk (ver
+# processar()), grava o chunk em falhas.jsonl com o motivo e segue para o
+# proximo chunk. Ou seja: bater no teto agora vira uma falha registrada e
+# recuperavel, nao um lote inteiro abortado.
+MAX_TOKENS_DE_SAIDA = 4096
+
+INSTRUCAO = """Voce extrai limiares tecnicos de laudos da Defesa Civil.
+
+Trecho ({secao}):
+{texto}
+
+Extraia TODOS os limiares numericos do trecho acima. Em fonte_trecho copie o
+pedaco EXATO que sustenta o numero. Faixa "entre X e Y" e UMA regra com
+valor_min=X e valor_max=Y; "acima de X" preenche so valor_min.
+"<= X", "ate X", "no maximo X" ou "abaixo de X" preenche so valor_max, sem inventar zero em valor_min.
+Niveis por cor: verde, amarelo, laranja, vermelho, roxo (menos para mais grave).
+Limiar valido para todo o estado usa entidade_tipo="estado" e
+entidade_nome="minas gerais", em vez de inventar entidade que o texto nao nomeia.
+escala="alerta_cor" vai com os niveis por cor; escala="intensidade" vai com fraca, moderada, forte, muito_forte, extremo; taxa em mm/h e grandeza="taxa_precipitacao", nao chuva_acumulada.
+"""
+
+
+def montar_prompt(chunk: Chunk) -> str:
+    return INSTRUCAO.format(secao=chunk.secao or "nao identificada", texto=chunk.texto)
+
+
+def extrair_do_chunk(chunk: Chunk, gerar: Callable[[str], str]) -> list[Regra]:
+    bruto = gerar(montar_prompt(chunk))
+    extracao = Extracao.model_validate_json(bruto)
+
+    regras: list[Regra] = []
+    for extraida in extracao.regras:
+        status, motivo = classificar(extraida, chunk.texto)
+        regras.append(
+            Regra(
+                **extraida.model_dump(),
+                regra_id=regra_id(
+                    chunk.chunk_id,
+                    extraida.entidade_tipo,
+                    extraida.entidade_nome,
+                    extraida.grandeza,
+                    extraida.escala,
+                    extraida.nivel,
+                    extraida.valor_min,
+                    extraida.valor_max,
+                ),
+                chunk_id=chunk.chunk_id,
+                fonte_doc=chunk.doc,
+                fonte_pagina=chunk.pagina,
+                fonte_secao=chunk.secao,
+                origem="modelo",
+                status=status,
+                motivo_suspeita=motivo,
+            )
+        )
+    return regras
+
+
+def processar(
+    chunks: list[Chunk],
+    gerar: Callable[[str], str],
+    saida: Path,
+    omissoes: Path,
+    falhas: Path,
+    sem_padrao: Path,
+) -> dict:
+    # falhas e sem_padrao entram no conjunto de "ja feitos" igual a saida e
+    # omissoes: um chunk que falhou (OOM, JSON truncado) ou que foi
+    # descartado por nao ter padrao de limiar nao e retentado numa
+    # reexecucao automatica. Apagar o arquivo correspondente e o jeito do
+    # operador forcar nova tentativa -- util porque OOM pode ser transitorio
+    # (outro processo liberou VRAM) enquanto um chunk malformado ou sem
+    # padrao nao muda sozinho.
+    ja_feitos = (
+        ids_ja_vistos(saida, "chunk_id")
+        | ids_ja_vistos(omissoes, "chunk_id")
+        | ids_ja_vistos(falhas, "chunk_id")
+        | ids_ja_vistos(sem_padrao, "chunk_id")
+    )
+
+    resumo = {
+        "chunks_processados": 0,
+        "chunks_pulados": 0,
+        "chunks_via_tabela": 0,
+        "chunks_via_modelo": 0,
+        "chunks_sem_padrao": 0,
+        "regras": 0,
+        "regras_via_tabela": 0,
+        "regras_via_modelo": 0,
+        "suspeitas": 0,
+        "omissoes": 0,
+        "falhas": 0,
+        "linhas_de_tabela_ignoradas": 0,
+    }
+    for chunk in chunks:
+        if chunk.chunk_id in ja_feitos:
+            resumo["chunks_pulados"] += 1
+            continue
+
+        try:
+            # O parser de tabela roda primeiro em todo chunk: e barato (sem
+            # GPU, sem chamada de modelo) e a tabela e a fonte de autoridade
+            # quando presente. Se ele reconhecer alguma regra, o modelo e
+            # pulado para este chunk -- economiza os ~140s por chunk da
+            # geracao e evita duas fontes contraditorias sobre o mesmo
+            # conteudo. Custo consciente dessa troca: um chunk com tabela E
+            # limiar solto em prosa no mesmo texto tera so a tabela lida: a
+            # prosa nao perde recall por isso, porque suspeito_de_omissao
+            # roda embaixo sobre chunk.texto inteiro, independente de qual
+            # caminho produziu as regras.
+            #
+            # Este parser roda antes do filtro de padrao (abaixo) e nao e
+            # gated por ele de proposito: uma linha de tabela e reconhecida
+            # pela estrutura (colunas, cabecalho), nao por regex sobre o
+            # texto corrido, entao o filtro nao tem nada a dizer sobre ela.
+            regras_de_tabela, linhas_ignoradas = extrair_de_tabelas(chunk)
+            # Contado sempre, mesmo quando o chunk acaba indo para o modelo
+            # (nenhuma tabela reconhecida): senao "nao achou nada" ficaria
+            # indistinguivel de "nao havia nada", o proprio erro que este
+            # projeto existe para evitar (task-19-brief).
+            resumo["linhas_de_tabela_ignoradas"] += linhas_ignoradas
+            if regras_de_tabela:
+                regras = regras_de_tabela
+                resumo["chunks_via_tabela"] += 1
+                resumo["regras_via_tabela"] += len(regras_de_tabela)
+            elif not pode_conter_limiar(chunk.texto):
+                # Filtro de custo (task-20, medido sobre os 92 chunks reais
+                # do acervo: 23 com padrao, 69 sem -- ~140s por chunk no
+                # modelo, entao os 69 sozinhos custariam ~2.7h de GPU para um
+                # retorno garantido de zero). Sem NENHUM digito seguido de
+                # unidade em todo o chunk, nao ha limiar numerico possivel
+                # nele -- mandar isso para o modelo so gasta GPU por um
+                # resultado ja conhecido.
+                #
+                # Risco assumido: um limiar escrito por extenso ("cota de
+                # noventa metros") nao tem digito e escapa deste filtro,
+                # entao esse chunk seria pulado sem chegar ao modelo. Em
+                # documentos tecnicos de Defesa Civil o limiar e escrito
+                # numericamente quase sempre, entao o risco e baixo -- mas e
+                # real, e agora e uma escolha deliberada, nao um acidente:
+                # nada se perde em silencio, porque o chunk pulado e
+                # registrado em sem_padrao e entra na contagem abaixo, entao
+                # o operador pode auditar exatamente quantos chunks foram
+                # descartados por este motivo.
+                #
+                # pode_conter_limiar e o mesmo predicado usado por
+                # suspeito_de_omissao (ingestao/validacao.py): a pergunta e
+                # identica ("este texto pode conter um limiar?"), entao a
+                # rede de recall permanece coerente com o filtro -- um chunk
+                # pulado aqui nunca seria sinalizado como omissao la, porque
+                # os dois usam a mesma resposta.
+                anexar_jsonl(
+                    sem_padrao,
+                    {"chunk_id": chunk.chunk_id, "doc": chunk.doc, "pagina": chunk.pagina},
+                )
+                resumo["chunks_sem_padrao"] += 1
+                continue
+            else:
+                regras = extrair_do_chunk(chunk, gerar)
+                resumo["chunks_via_modelo"] += 1
+                resumo["regras_via_modelo"] += len(regras)
+        except Exception as erro:
+            # Exception, nao BaseException: KeyboardInterrupt e SystemExit
+            # precisam continuar propagando para o operador poder parar um
+            # lote longo. Nada desaparece em silencio -- mesma convencao da
+            # etapa 03 (erro_extracao no manifesto, ver 21d1b6c).
+            anexar_jsonl(
+                falhas,
+                {"chunk_id": chunk.chunk_id, "doc": chunk.doc, "pagina": chunk.pagina, "erro": str(erro)},
+            )
+            resumo["falhas"] += 1
+            print(f"[falha] chunk {chunk.chunk_id} ({chunk.doc}, pagina {chunk.pagina}): {erro}")
+            continue
+
+        for regra in regras:
+            anexar_jsonl(saida, regra.model_dump())
+            resumo["regras"] += 1
+            if regra.status == "suspeito":
+                resumo["suspeitas"] += 1
+
+        if suspeito_de_omissao(chunk.texto, len(regras)):
+            anexar_jsonl(
+                omissoes,
+                {"chunk_id": chunk.chunk_id, "doc": chunk.doc, "pagina": chunk.pagina, "texto": chunk.texto},
+            )
+            resumo["omissoes"] += 1
+
+        resumo["chunks_processados"] += 1
+    return resumo
+
+
+def criar_gerador_qwen(model_id: str = MODELO_PADRAO) -> Callable[[str], str]:
+    import outlines
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
+    # Efeito colateral: torch.manual_seed muda o estado global do gerador de
+    # numeros aleatorios do processo, nao so deste gerador. Inofensivo aqui
+    # porque a decodificacao e gulosa (do_sample=False), mas quem compartilhar
+    # o processo com outro codigo que depende de aleatoriedade (ex.: o script
+    # de treino) nao deveria esperar isso.
+    torch.manual_seed(SEMENTE)
+
+    quantizacao = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_use_double_quant=True,
+    )
+    modelo = outlines.from_transformers(
+        AutoModelForCausalLM.from_pretrained(
+            model_id,
+            quantization_config=quantizacao,
+            dtype=torch.bfloat16,
+            device_map="cuda:0",
+        ),
+        AutoTokenizer.from_pretrained(model_id),
+    )
+    gerador = outlines.Generator(modelo, Extracao)
+
+    def gerar(prompt: str) -> str:
+        # outlines 1.3.3 repassa kwargs de inferencia direto para
+        # transformers.generate(), que valida a lista contra a assinatura de
+        # prepare_inputs_for_generation e rejeita chaves desconhecidas.
+        # "seed" nao esta nessa lista (ValueError: model_kwargs nao usado) --
+        # a determinacao aqui vem de do_sample=False (decodificacao gulosa)
+        # mais o torch.manual_seed acima, chamado uma vez na criacao do
+        # gerador.
+        #
+        # do_sample=False precisa ser explicito, nao um efeito colateral de
+        # temperature=0. O generation_config default varia por modelo: o
+        # Qwen2.5-3B base vem com do_sample=False (temperature ignorada, entao
+        # temperature=0 passava batido por acidente), mas todo variante
+        # Instruct -- incluindo o Qwen2.5-7B-Instruct de producao -- vem com
+        # do_sample=True e temperature=0.7. Com do_sample=True, transformers
+        # monta um TemperatureLogitsWarper e temperature=0 vira
+        # "ValueError: `temperature` (=0) has to be a strictly positive
+        # float". Pedir do_sample=False funciona independente do modelo, que
+        # e exatamente o que a decodificacao gulosa deste projeto precisa.
+        return gerador(
+            prompt,
+            max_new_tokens=MAX_TOKENS_DE_SAIDA,
+            do_sample=False,
+        )
+
+    return gerar

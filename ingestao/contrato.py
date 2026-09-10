@@ -1,19 +1,100 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 Dominio = Literal["geologia", "hidrologia", "meteorologia"]
-EntidadeTipo = Literal["tipo_solo", "bacia", "estacao", "municipio"]
-Grandeza = Literal["chuva_acumulada", "cota", "vazao"]
-Unidade = Literal["mm", "m", "m3/s"]
-Nivel = Literal["atencao", "critico"]
+EntidadeTipo = Literal["tipo_solo", "bacia", "estacao", "municipio", "regiao", "estado"]
+Grandeza = Literal[
+    "chuva_acumulada",
+    "cota",
+    "vazao",
+    "vento",
+    "vil",
+    "refletividade",
+    "temperatura_topo",
+    "taxa_precipitacao",
+]
+Unidade = Literal["mm", "m", "m3/s", "km/h", "kg/m2", "dBZ", "celsius", "mm/h"]
+
+# Duas escalas de classificacao coexistem no acervo, e nao sao a mesma coisa:
+#
+# - alerta_cor: escala normativa de MG (POP_ENVIO_DE_ALERTA_HIDROMETEOROLOGICO
+#   N 6.1.3/2025, secao 6.2), cinco niveis nomeados por cor sobre chuva
+#   acumulada (mm). Limiar vindo de outra fonte (ex.: INMET, que usa perigo
+#   potencial / perigo / grande perigo) e mapeado para a cor equivalente na
+#   extracao; fonte_trecho preserva o texto original.
+# - intensidade: classifica a taxa de precipitacao (mm/h) em si -- quao forte
+#   esta chovendo --, nao a resposta operacional a esse tanto de chuva. Vem de
+#   tabelas como a de PROTOCOLO_ALERTAS_METEORO.docx (Fraca/Moderada/Forte/
+#   Muito Forte/Extremo).
+#
+# As duas escalas sao relacionadas -- o POP deriva as cores dos patamares de
+# acumulado -- mas misturar os niveis de uma na outra (ex.: rotular "Moderada"
+# como uma cor) reproduziria o erro ja corrigido neste projeto em que um
+# limiar estadual de chuva foi rotulado entidade_tipo=tipo_solo por falta de
+# opcao melhor no vocabulario.
+Escala = Literal["alerta_cor", "intensidade"]
+
+NIVEIS_ALERTA_COR: frozenset[str] = frozenset({"verde", "amarelo", "laranja", "vermelho", "roxo"})
+NIVEIS_INTENSIDADE: frozenset[str] = frozenset({"fraca", "moderada", "forte", "muito_forte", "extremo"})
+
+NIVEIS_POR_ESCALA: dict[str, frozenset[str]] = {
+    "alerta_cor": NIVEIS_ALERTA_COR,
+    "intensidade": NIVEIS_INTENSIDADE,
+}
+
+Nivel = Literal["verde", "amarelo", "laranja", "vermelho", "roxo", "fraca", "moderada", "forte", "muito_forte", "extremo"]
 Status = Literal["ok", "suspeito"]
 Veredito = Literal["aprovado", "rejeitado", "corrigido"]
+
+# De onde a regra veio: "tabela" quando ingestao/tabelas.py leu uma linha de
+# markdown por regra de codigo, "modelo" quando o Qwen inferiu a partir de
+# prosa. So existe em Regra, nunca em RegraExtraida -- o modelo nunca produz
+# a propria procedencia, e o parser de tabela tambem nao inventa a dele: quem
+# atribui e o script, o mesmo lugar que ja atribui fonte_doc/fonte_pagina/
+# fonte_secao. Serve ao portao humano: uma regra de tabela merece confianca
+# diferente de uma inferida, e o revisor pode priorizar por isso.
+Origem = Literal["tabela", "modelo"]
+
+
+# Limites do excerto citado, medidos sobre as frases com padrao de limiar nos
+# 92 chunks reais deste acervo: mediana 124 caracteres, p75 174, p90 237.
+# Um teto de 100 (o primeiro valor adotado, calibrado em apenas dois exemplos
+# de 46 e 68 caracteres) cobria so 35% dessas frases -- a gramatica truncava a
+# citacao ANTES dos numeros e extremos_citados reprovava extracao correta:
+# 44 das 89 suspeitas de uma execucao real eram esse falso positivo. 250
+# cobre 91%.
+#
+# O teto nasceu para impedir que copiar uma linha da tabela de eventos
+# (87-145 caracteres) esgotasse o orcamento de tokens antes do JSON fechar.
+# Esse risco hoje e coberto por MAX_TOKENS_DE_SAIDA=4096, entao o teto pode
+# servir ao seu proposito restante: manter a citacao curta o bastante para um
+# humano conferir de relance, sem cortar a frase que sustenta o numero.
+#
+# O bound entra no JSON schema (minLength/maxLength) que outlines usa para
+# montar a gramatica -- restricao estrutural, nao pedido no prompt.
+MAX_CHARS_FONTE_TRECHO = 250
+
+# O minimo barra citacao vazia ou de duas palavras soltas ("6 mm"), que nao
+# permite a um revisor achar o numero no documento original.
+MIN_CHARS_FONTE_TRECHO = 10
 
 
 class RegraExtraida(BaseModel):
     """Exatamente o que o modelo produz. A procedencia de arquivo nao passa
-    pelo modelo: quem anexa e o script, a partir dos metadados do chunk."""
+    pelo modelo: quem anexa e o script, a partir dos metadados do chunk.
+
+    O limiar e uma faixa, nao um valor unico:
+    - valor_min e valor_max preenchidos: faixa fechada. "entre 6 mm e 30 mm"
+      vira valor_min=6.0, valor_max=30.0.
+    - so valor_min: limiar aberto para cima. "acima de 90 mm" e "90 mm ou
+      mais" viram valor_min=90.0, valor_max=None.
+    - so valor_max: limiar aberto para baixo.
+    - Ambos os extremos sao inclusivos. A distincao entre > e >= nao e
+      operacionalmente relevante num limiar de alerta.
+    - Pelo menos um dos dois precisa estar preenchido -- uma regra sem
+      nenhum extremo nao e um limiar.
+    """
 
     dominio: Dominio
     entidade_tipo: EntidadeTipo
@@ -21,9 +102,27 @@ class RegraExtraida(BaseModel):
     grandeza: Grandeza
     janela_horas: int | None
     unidade: Unidade
+    escala: Escala
     nivel: Nivel
-    valor: float
-    fonte_trecho: str
+    valor_min: float | None
+    valor_max: float | None
+    fonte_trecho: str = Field(min_length=MIN_CHARS_FONTE_TRECHO, max_length=MAX_CHARS_FONTE_TRECHO)
+
+    @model_validator(mode="after")
+    def _exige_pelo_menos_um_extremo(self) -> "RegraExtraida":
+        if self.valor_min is None and self.valor_max is None:
+            raise ValueError("regra precisa de valor_min ou valor_max preenchido")
+        return self
+
+    @model_validator(mode="after")
+    def _nivel_pertence_a_escala(self) -> "RegraExtraida":
+        # O ponto inteiro do campo escala e este validador -- sem ele, as
+        # duas escalas voltam a se misturar, so que agora com uma coluna a
+        # mais para dar falsa sensacao de que estao separadas.
+        permitidos = NIVEIS_POR_ESCALA[self.escala]
+        if self.nivel not in permitidos:
+            raise ValueError(f"nivel {self.nivel!r} nao pertence a escala {self.escala!r}")
+        return self
 
 
 class Extracao(BaseModel):
@@ -44,6 +143,7 @@ class Regra(RegraExtraida):
     fonte_doc: str
     fonte_pagina: int | None
     fonte_secao: str | None
+    origem: Origem
     status: Status
     motivo_suspeita: str | None = None
 
@@ -51,6 +151,7 @@ class Regra(RegraExtraida):
 class Decisao(BaseModel):
     regra_id: str
     veredito: Veredito
-    valor_corrigido: float | None = None
+    valor_min_corrigido: float | None = None
+    valor_max_corrigido: float | None = None
     revisor: str
     decidido_em: str

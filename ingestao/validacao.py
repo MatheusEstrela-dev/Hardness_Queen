@@ -1,0 +1,230 @@
+import re
+import unicodedata
+
+from ingestao.contrato import RegraExtraida
+
+FAIXAS_PLAUSIVEIS: dict[tuple[str, str], tuple[float, float]] = {
+    ("chuva_acumulada", "mm"): (1.0, 1000.0),
+    ("cota", "m"): (0.1, 50.0),
+    ("vazao", "m3/s"): (0.1, 100000.0),
+    ("vento", "km/h"): (10.0, 400.0),
+    ("vil", "kg/m2"): (0.1, 100.0),
+    ("refletividade", "dBZ"): (5.0, 80.0),
+    ("temperatura_topo", "celsius"): (-90.0, 40.0),
+    # A propria tabela de intensidade (PROTOCOLO_ALERTAS_METEORO.docx) usa
+    # "> 90mm/h" como classe mais severa (Extremo). O maximo fisico plausivel
+    # vem de registro historico, nao de intuicao: o recorde mundial de chuva
+    # acumulada em 1 hora e de 401,7 mm (Foc-Foc, La Reuniao, 1966, OMM) --
+    # 400.0 arredonda isso com folga de "alguns poucos" mm, sem abrir espaco
+    # para um valor de ordem de grandeza maior (ex.: erro de OCR ou
+    # alucinacao do modelo emitindo milhares de mm/h) passar como plausivel.
+    # O minimo de 0.1 mm/h e o piso de chuvisco mensuravel, na mesma ordem de
+    # grandeza do minimo ja usado para vil (0.1 kg/m2) e cota (0.1 m).
+    ("taxa_precipitacao", "mm/h"): (0.1, 400.0),
+}
+
+# Unidades multi-caractere (mm/h, mm, m3/s, km/h, kg/m2, dbz, celsius)
+# precisam vir antes de "m\b" e "h\b" na alternancia: "m\b" e "h\b" exigem
+# fronteira de palavra logo apos a letra, entao sozinhos nao casam dentro de
+# "mm" (m seguido de m, sem fronteira) nem de "km/h" (m seguido de /, que tem
+# fronteira, mas so e alcancado se nada antes tiver casado -- por isso a
+# ordem "km/h" antes de "m\b" evita depender so da fronteira de palavra).
+# "mm/h" precisa vir antes de "mm" pelo mesmo motivo -- "mm" e prefixo literal
+# de "mm/h", entao sem essa ordem a alternancia sempre resolveria em "mm" e
+# nunca chegaria a testar "mm/h" (o "/h" sobrando nao muda o resultado deste
+# regex, que so verifica presenca de limiar para fins de recall, mas deixar
+# "mm/h" implicito nesse acidente de prefixo tornaria o reconhecimento fragil
+# a qualquer reordenacao futura da alternancia).
+_PADRAO_DE_LIMIAR = re.compile(
+    r"\d+(?:[.,]\d+)?\s*(?:mm/h|mm|m3/s|km/h|kg/m2|dbz|celsius|°c|m\b|h\b|c\b)",
+    re.IGNORECASE,
+)
+
+
+def normalizar(texto: str) -> str:
+    # O chunk de origem vem do pymupdf4llm como markdown (ex.: "**termo**
+    # , resto"), enquanto o modelo cita a prosa limpa (ex.: "termo, resto").
+    # As duas formas divergem em pontuacao e espacamento por construcao,
+    # mesmo quando a citacao esta correta -- comparar caractere a caractere
+    # (ou so trocar a marcacao por espaco) gera falso "suspeito" nesse caso.
+    # A sequencia de tokens alfanumericos, porem, e igual nos dois lados.
+    # Extrair tokens com regex (em vez de so remover a pontuacao) tambem
+    # preserva a fronteira entre palavras que a marcacao separava --
+    # "**gnaisse**100mm" produz os tokens "gnaisse" e "100mm" em vez de se
+    # fundir em "gnaisse100mm", o que evitaria a fusao criar uma citacao
+    # falsa que nao existia no texto original.
+    sem_acento = "".join(
+        caractere
+        for caractere in unicodedata.normalize("NFKD", texto)
+        if not unicodedata.combining(caractere)
+    )
+    return " ".join(re.findall(r"[a-z0-9]+", sem_acento.lower()))
+
+
+def trecho_confere(trecho: str, texto_chunk: str) -> bool:
+    return normalizar(trecho) in normalizar(texto_chunk)
+
+
+# Numero solto, com separador decimal opcional em ponto ou virgula --
+# documentos brasileiros escrevem os dois indiferentemente ("31,5" e
+# "31.5"). Sem sinal: a citacao de um limiar de alerta nao depende de
+# reconhecer negativo aqui, e mistura mal com hifen de intervalo ("26-50").
+_PADRAO_DE_NUMERO = re.compile(r"\d+(?:[.,]\d+)?")
+
+_TOLERANCIA_NUMERICA = 1e-9
+
+
+def _numeros_do_trecho(trecho: str) -> list[float]:
+    return [float(bruto.replace(",", ".")) for bruto in _PADRAO_DE_NUMERO.findall(trecho)]
+
+
+def extremos_citados(valor_min: float | None, valor_max: float | None, trecho: str) -> bool:
+    numeros = _numeros_do_trecho(trecho)
+    for extremo in (valor_min, valor_max):
+        if extremo is None:
+            continue
+        if not any(abs(extremo - numero) < _TOLERANCIA_NUMERICA for numero in numeros):
+            return False
+    return True
+
+
+def _motivo_de_extremo_nao_citado(
+    valor_min: float | None,
+    valor_max: float | None,
+    trecho: str,
+) -> str:
+    numeros = _numeros_do_trecho(trecho)
+    for nome, extremo in (("valor_min", valor_min), ("valor_max", valor_max)):
+        if extremo is None:
+            continue
+        if not any(abs(extremo - numero) < _TOLERANCIA_NUMERICA for numero in numeros):
+            return f"{nome} {extremo} nao aparece como numero no trecho citado"
+    return "extremo nao aparece como numero no trecho citado"
+
+
+def valor_plausivel(
+    grandeza: str,
+    unidade: str,
+    valor_min: float | None,
+    valor_max: float | None,
+) -> bool:
+    faixa = FAIXAS_PLAUSIVEIS.get((grandeza, unidade))
+    if faixa is None:
+        return False
+    minimo, maximo = faixa
+    if valor_min is not None and not (minimo <= valor_min <= maximo):
+        return False
+    if valor_max is not None and not (minimo <= valor_max <= maximo):
+        return False
+    if valor_min is not None and valor_max is not None and valor_min > valor_max:
+        return False
+    return True
+
+
+def _motivo_de_implausibilidade(
+    grandeza: str,
+    unidade: str,
+    valor_min: float | None,
+    valor_max: float | None,
+) -> str:
+    faixa = FAIXAS_PLAUSIVEIS.get((grandeza, unidade))
+    if faixa is None:
+        return f"combinacao {grandeza}/{unidade} desconhecida"
+    minimo, maximo = faixa
+    if valor_min is not None and valor_max is not None and valor_min > valor_max:
+        return f"faixa invertida: valor_min {valor_min} maior que valor_max {valor_max}"
+    if valor_min is not None and not (minimo <= valor_min <= maximo):
+        return f"valor_min {valor_min} fora da faixa para {grandeza} em {unidade}"
+    if valor_max is not None and not (minimo <= valor_max <= maximo):
+        return f"valor_max {valor_max} fora da faixa para {grandeza} em {unidade}"
+    return f"valor fora da faixa para {grandeza} em {unidade}"
+
+
+# Grandezas cuja unidade ja carrega o tempo (mm/h e uma taxa). Para elas,
+# janela_horas preenchido e contradicao: ou o documento fala de taxa, e a
+# janela nao se aplica, ou fala de acumulado numa janela, e a grandeza
+# deveria ser chuva_acumulada.
+GRANDEZAS_DE_TAXA = {"taxa_precipitacao"}
+
+
+def janela_coerente_com_grandeza(grandeza: str, janela_horas: int | None) -> bool:
+    """Uma taxa nao tem janela maior que 1h: o "por hora" ja esta na unidade.
+
+    Achado real: o modelo leu "60 mm em 24 horas" como taxa_precipitacao de
+    60 mm/h com janela 24. Sao coisas diferentes por um fator de 24 -- 60 mm
+    acumulados em um dia contra 60 mm caindo a cada hora. Codificada como
+    taxa, a regra praticamente nunca dispara, que e o pior modo de falha num
+    sistema de alerta: silencio em vez de erro visivel.
+    """
+    if grandeza not in GRANDEZAS_DE_TAXA:
+        return True
+    # janela nula e o ideal, e janela de 1 hora e redundante mas coerente:
+    # "30 mm em uma hora" e ao mesmo tempo um acumulado de 1h e uma taxa de
+    # 30 mm/h -- numericamente a mesma coisa, e o documento escreve das duas
+    # formas. So janela diferente de 1 e contradicao real, e e ela que erra
+    # por um fator igual a propria janela.
+    return janela_horas is None or janela_horas == 1
+
+
+def faixa_nao_degenerada(valor_min: float | None, valor_max: float | None) -> bool:
+    """Um limiar e uma fronteira, nao um ponto.
+
+    Achado real: "superiores a 90 mm em 24 horas" virou valor_min=90 E
+    valor_max=90, o que significa "exatamente 90" em vez de "acima de 90".
+    Assim a regra so dispara num valor exato e, na pratica, nunca. O correto
+    para um limiar aberto e deixar o outro extremo nulo.
+    """
+    if valor_min is None or valor_max is None:
+        return True
+    return valor_min != valor_max
+
+
+def classificar(regra: RegraExtraida, texto_chunk: str) -> tuple[str, str | None]:
+    # A ordem das tres checagens importa: cada uma e mais barata e mais
+    # fundamental que a seguinte, e a primeira a falhar e a mensagem mais
+    # util para o revisor.
+    # 1) o trecho citado existe no chunk? Um trecho que o modelo inventou
+    #    de saida torna as outras duas checagens sem sentido.
+    if not trecho_confere(regra.fonte_trecho, texto_chunk):
+        return "suspeito", "trecho citado nao encontrado no chunk de origem"
+    # 2) os numeros da faixa aparecem nesse trecho? Um trecho real do chunk
+    #    mas que nao contem os proprios numeros da regra nao sustenta a
+    #    regra, seja o valor plausivel ou nao -- essa e a fabricacao que
+    #    passava despercebida antes desta checagem existir.
+    if not extremos_citados(regra.valor_min, regra.valor_max, regra.fonte_trecho):
+        motivo = _motivo_de_extremo_nao_citado(regra.valor_min, regra.valor_max, regra.fonte_trecho)
+        return "suspeito", motivo
+    # 3) o valor e fisicamente sensato para a grandeza e unidade?
+    if not valor_plausivel(regra.grandeza, regra.unidade, regra.valor_min, regra.valor_max):
+        motivo = _motivo_de_implausibilidade(regra.grandeza, regra.unidade, regra.valor_min, regra.valor_max)
+        return "suspeito", motivo
+    # 4) taxa com janela e contradicao -- ver janela_coerente_com_grandeza.
+    if not janela_coerente_com_grandeza(regra.grandeza, regra.janela_horas):
+        return "suspeito", (
+            f"{regra.grandeza} e taxa (a unidade ja tem o tempo) mas veio com "
+            f"janela_horas={regra.janela_horas}; se o documento fala de acumulado "
+            "numa janela, a grandeza deveria ser chuva_acumulada"
+        )
+    # 5) faixa de um ponto so -- ver faixa_nao_degenerada.
+    if not faixa_nao_degenerada(regra.valor_min, regra.valor_max):
+        return "suspeito", (
+            f"faixa degenerada: valor_min e valor_max sao ambos {regra.valor_min:g}; "
+            "um limiar aberto deixa o outro extremo nulo"
+        )
+    return "ok", None
+
+
+def pode_conter_limiar(texto: str) -> bool:
+    # Predicado publico: usado tanto pela rede de recall (suspeito_de_omissao,
+    # abaixo) quanto pelo filtro de custo em processar() (extrator_regras.py,
+    # task-20). As duas perguntas sao a mesma pergunta -- "este texto pode
+    # conter um limiar numerico?" -- entao precisam da mesma resposta. Duas
+    # implementacoes independentes desse julgamento poderiam divergir com o
+    # tempo e, pior, discordar entre si num mesmo chunk.
+    return bool(_PADRAO_DE_LIMIAR.search(texto))
+
+
+def suspeito_de_omissao(texto_chunk: str, total_de_regras: int) -> bool:
+    if total_de_regras > 0:
+        return False
+    return pode_conter_limiar(texto_chunk)

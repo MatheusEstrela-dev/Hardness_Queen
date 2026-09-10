@@ -37,6 +37,15 @@ def ids_ja_vistos(caminho: Path, campo: str) -> set[str]:
     return {registro[campo] for registro in ler_jsonl(caminho) if campo in registro}
 
 
+# Estados que representam uma extracao concluida com sucesso. "sem_camada_texto"
+# entra aqui porque a extracao funcionou e determinou corretamente que o
+# documento nao tem camada de texto -- reprocessar todo run so gastaria tempo
+# sem gerar resultado diferente. "erro_extracao" fica de fora de proposito: um
+# documento que falhou precisa ser tentado de novo no proximo run, senao ele
+# some do relatorio como se estivesse "pulado" por nao ter mudado.
+ESTADOS_SUCESSO = frozenset({"texto_nativo", "ocr_aplicado", "sem_camada_texto"})
+
+
 def registrar_documento(
     manifesto: Path,
     doc: str,
@@ -59,7 +68,13 @@ def registrar_documento(
 
 
 def documento_inalterado(manifesto: Path, doc: str, hash_doc: str) -> bool:
+    ultimo_registro = None
     for registro in ler_jsonl(manifesto):
-        if registro.get("doc") == doc and registro.get("hash") == hash_doc:
-            return True
-    return False
+        if registro.get("doc") == doc:
+            ultimo_registro = registro
+    if ultimo_registro is None:
+        return False
+    return (
+        ultimo_registro.get("hash") == hash_doc
+        and ultimo_registro.get("estado") in ESTADOS_SUCESSO
+    )

@@ -3,10 +3,15 @@ __pycache__/
 *.pyc
 .pytest_cache/
 models/
-data/chunks/
+# data/chunks/ versionado a pedido do autor, que confirmou que este
+# repositorio e PRIVADO. Contem o texto integral de documentos internos
+# da Defesa Civil de MG -- se a visibilidade do repo mudar, isto sai antes.
 data/regras_propostas.jsonl
 data/regras_aprovadas.jsonl
 data/decisoes.jsonl
+data/possiveis_omissoes.jsonl
+data/possiveis_falhas.jsonl
+data/possiveis_sem_padrao.jsonl
 data/manifesto.jsonl
 docs/*.pdf
 docs/*.docx
