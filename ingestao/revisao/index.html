@@ -34,7 +34,16 @@
 <script>
 let fila = [];
 let atual = null;
-const revisor = prompt("Seu nome, para a trilha de auditoria:") || "nao identificado";
+let decidindo = false;
+
+function pedirRevisor() {
+  let nome = "";
+  while (!nome.trim()) {
+    nome = prompt("Seu nome, para a trilha de auditoria (obrigatorio):") || "";
+  }
+  return nome.trim();
+}
+const revisor = pedirRevisor();
 
 async function carregar() {
   const resposta = await fetch("/api/pendentes");
@@ -58,11 +67,18 @@ function mostrar() {
 
   const ordem = ["faixa", "unidade", "entidade_nome", "escala", "nivel", "janela_horas",
                  "dominio", "grandeza", "origem", "fonte_doc", "fonte_pagina", "fonte_secao"];
-  document.getElementById("campos").innerHTML = ordem
-    .map(campo => `<div class="campo"><strong>${campo}</strong>${
-      campo === "faixa" ? formatarFaixa(atual) : (atual[campo] ?? "-")
-    }</div>`)
-    .join("");
+  const campos = document.getElementById("campos");
+  campos.textContent = "";
+  for (const campo of ordem) {
+    const valor = campo === "faixa" ? formatarFaixa(atual) : (atual[campo] ?? "-");
+    const div = document.createElement("div");
+    div.className = "campo";
+    const rotulo = document.createElement("strong");
+    rotulo.textContent = campo;
+    div.appendChild(rotulo);
+    div.appendChild(document.createTextNode(String(valor)));
+    campos.appendChild(div);
+  }
 }
 
 function formatarFaixa(regra) {
@@ -81,19 +97,34 @@ function formatarFaixa(regra) {
 }
 
 async function decidir(veredito, valorMinCorrigido, valorMaxCorrigido) {
-  if (!atual) return;
-  await fetch("/api/decisao", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      regra_id: atual.regra_id,
-      veredito: veredito,
-      valor_min_corrigido: valorMinCorrigido ?? null,
-      valor_max_corrigido: valorMaxCorrigido ?? null,
-      revisor: revisor,
-    }),
-  });
-  mostrar();
+  // Guarda sincrona: uma tecla segurada (repeat) ou duas teclas rapidas
+  // disparam decidir() duas vezes antes do primeiro fetch responder. Sem
+  // isto, duas POSTs para o mesmo regra_id e dois fila.shift() pulam uma
+  // regra da revisao sem ninguem perceber.
+  if (!atual || decidindo) return;
+  decidindo = true;
+  try {
+    const resposta = await fetch("/api/decisao", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        regra_id: atual.regra_id,
+        veredito: veredito,
+        valor_min_corrigido: valorMinCorrigido ?? null,
+        valor_max_corrigido: valorMaxCorrigido ?? null,
+        revisor: revisor,
+      }),
+    });
+    if (!resposta.ok) {
+      const corpo = await resposta.json().catch(() => null);
+      const detalhe = corpo && corpo.detail ? JSON.stringify(corpo.detail) : resposta.statusText;
+      alert(`Falha ao registrar decisao (HTTP ${resposta.status}): ${detalhe}\nA fila NAO avancou -- tente novamente.`);
+      return;
+    }
+    mostrar();
+  } finally {
+    decidindo = false;
+  }
 }
 
 function parseExtremo(entrada) {
@@ -120,6 +151,11 @@ function corrigir() {
 
 document.addEventListener("keydown", evento => {
   if (evento.target.tagName === "INPUT") return;
+  // event.repeat: o SO repete keydown enquanto a tecla fica pressionada.
+  // Um revisor guiado por teclado segura "A" naturalmente -- sem este
+  // guard, cada repeticao dispara outra decisao para a mesma regra.
+  if (evento.repeat) return;
+  if (decidindo) return;
   const tecla = evento.key.toLowerCase();
   if (tecla === "a") decidir("aprovado");
   if (tecla === "r") decidir("rejeitado");

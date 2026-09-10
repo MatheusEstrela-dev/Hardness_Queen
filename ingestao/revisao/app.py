@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from ingestao.contrato import Decisao, Veredito
 from ingestao.persistencia import anexar_jsonl, escrever_jsonl, ler_jsonl
@@ -18,6 +18,31 @@ class PedidoDeDecisao(BaseModel):
     valor_max_corrigido: float | None = None
     revisor: str
 
+    @model_validator(mode="after")
+    def _corrigido_exige_extremo(self) -> "PedidoDeDecisao":
+        # Sem isso, veredito="corrigido" com os dois extremos nulos passa
+        # despercebido por _regenerar_aprovadas e aprova o numero original do
+        # modelo como se tivesse sido conferido -- exatamente o que a fila de
+        # revisao existe para impedir.
+        if (
+            self.veredito == "corrigido"
+            and self.valor_min_corrigido is None
+            and self.valor_max_corrigido is None
+        ):
+            raise ValueError(
+                "veredito 'corrigido' exige valor_min_corrigido ou valor_max_corrigido"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _revisor_nao_pode_ser_vazio(self) -> "PedidoDeDecisao":
+        # A trilha de auditoria depende de um nome em toda decisao. Sem este
+        # guard o servidor aceitaria "" (o cliente ja manda um nome vazio se
+        # o prompt for cancelado, antes do fix em index.html).
+        if not self.revisor.strip():
+            raise ValueError("revisor nao pode ser vazio")
+        return self
+
 
 def criar_app(propostas: Path, decisoes: Path, aprovadas: Path) -> FastAPI:
     app = FastAPI(title="Revisao de limiares")
@@ -26,18 +51,25 @@ def criar_app(propostas: Path, decisoes: Path, aprovadas: Path) -> FastAPI:
         return {registro["regra_id"] for registro in ler_jsonl(decisoes)}
 
     def _regenerar_aprovadas() -> None:
+        # decisoes.jsonl e append-only (trilha de auditoria: nunca perde uma
+        # decisao, mesmo trocada). aprovadas.jsonl e o estado final derivado
+        # -- so a ULTIMA decisao por regra_id conta, senao aprovar-depois-
+        # rejeitar deixa a regra aprovada (o "continue" do rejeitado nao
+        # desfaz a linha ja escrita pela decisao anterior) e duas decisoes
+        # para a mesma regra duplicam a linha.
         por_id = {registro["regra_id"]: registro for registro in ler_jsonl(propostas)}
-        saida = []
+        ultima_decisao_por_regra: dict[str, dict] = {}
         for decisao in ler_jsonl(decisoes):
+            ultima_decisao_por_regra[decisao["regra_id"]] = decisao
+
+        saida = []
+        for regra_id, decisao in ultima_decisao_por_regra.items():
             if decisao["veredito"] == "rejeitado":
                 continue
-            regra = dict(por_id.get(decisao["regra_id"], {}))
+            regra = dict(por_id.get(regra_id, {}))
             if not regra:
                 continue
-            if decisao["veredito"] == "corrigido" and (
-                decisao.get("valor_min_corrigido") is not None
-                or decisao.get("valor_max_corrigido") is not None
-            ):
+            if decisao["veredito"] == "corrigido":
                 regra["valor_min_original"] = regra["valor_min"]
                 regra["valor_max_original"] = regra["valor_max"]
                 regra["valor_min"] = decisao.get("valor_min_corrigido")

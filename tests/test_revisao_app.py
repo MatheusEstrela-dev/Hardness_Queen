@@ -131,7 +131,7 @@ def test_correcao_pode_deixar_um_extremo_sem_limite(ambiente):
 
 
 def test_decisao_para_regra_inexistente_devolve_404(ambiente):
-    cliente, _, _ = ambiente
+    cliente, decisoes, aprovadas = ambiente
 
     resposta = cliente.post(
         "/api/decisao",
@@ -139,6 +139,100 @@ def test_decisao_para_regra_inexistente_devolve_404(ambiente):
     )
 
     assert resposta.status_code == 404
+    # 404 precisa acontecer ANTES de qualquer escrita -- nem a trilha de
+    # auditoria nem o derivado podem registrar uma decisao para uma regra
+    # que nao existe nas propostas.
+    assert ler_jsonl(decisoes) == []
+    assert ler_jsonl(aprovadas) == []
+
+
+def test_duas_decisoes_para_a_mesma_regra_geram_uma_linha_em_aprovadas_com_a_ultima(ambiente):
+    cliente, decisoes, aprovadas = ambiente
+
+    cliente.post("/api/decisao", json={"regra_id": "r1", "veredito": "aprovado", "revisor": "matheus"})
+    cliente.post(
+        "/api/decisao",
+        json={
+            "regra_id": "r1",
+            "veredito": "corrigido",
+            "valor_min_corrigido": 6.0,
+            "valor_max_corrigido": 30.0,
+            "revisor": "matheus",
+        },
+    )
+
+    registros_aprovadas = ler_jsonl(aprovadas)
+    assert len(registros_aprovadas) == 1
+    assert registros_aprovadas[0]["valor_min"] == 6.0
+    assert registros_aprovadas[0]["valor_max"] == 30.0
+    # decisoes.jsonl e a trilha de auditoria -- append-only, nunca perde
+    # uma decisao mesmo quando ela e substituida no derivado.
+    assert len(ler_jsonl(decisoes)) == 2
+
+
+def test_aprovar_depois_rejeitar_deixa_a_regra_fora_de_aprovadas(ambiente):
+    cliente, decisoes, aprovadas = ambiente
+
+    cliente.post("/api/decisao", json={"regra_id": "r1", "veredito": "aprovado", "revisor": "matheus"})
+    cliente.post("/api/decisao", json={"regra_id": "r1", "veredito": "rejeitado", "revisor": "matheus"})
+
+    assert ler_jsonl(aprovadas) == []
+    assert len(ler_jsonl(decisoes)) == 2
+
+
+def test_rejeitar_depois_aprovar_deixa_a_regra_dentro_de_aprovadas(ambiente):
+    cliente, decisoes, aprovadas = ambiente
+
+    cliente.post("/api/decisao", json={"regra_id": "r1", "veredito": "rejeitado", "revisor": "matheus"})
+    cliente.post("/api/decisao", json={"regra_id": "r1", "veredito": "aprovado", "revisor": "matheus"})
+
+    assert [r["regra_id"] for r in ler_jsonl(aprovadas)] == ["r1"]
+    assert len(ler_jsonl(decisoes)) == 2
+
+
+def test_corrigido_sem_nenhum_extremo_devolve_422(ambiente):
+    cliente, decisoes, aprovadas = ambiente
+
+    resposta = cliente.post(
+        "/api/decisao",
+        json={
+            "regra_id": "r1",
+            "veredito": "corrigido",
+            "valor_min_corrigido": None,
+            "valor_max_corrigido": None,
+            "revisor": "matheus",
+        },
+    )
+
+    assert resposta.status_code == 422
+    # Rejeitado antes da validacao do pydantic -- nao pode aprovar o valor
+    # original da regra em silencio nem registrar a tentativa na trilha.
+    assert ler_jsonl(decisoes) == []
+    assert ler_jsonl(aprovadas) == []
+
+
+def test_revisor_vazio_devolve_422(ambiente):
+    cliente, decisoes, _ = ambiente
+
+    resposta = cliente.post(
+        "/api/decisao",
+        json={"regra_id": "r1", "veredito": "aprovado", "revisor": ""},
+    )
+
+    assert resposta.status_code == 422
+    assert ler_jsonl(decisoes) == []
+
+
+def test_revisor_so_com_espacos_devolve_422(ambiente):
+    cliente, decisoes, _ = ambiente
+
+    resposta = cliente.post(
+        "/api/decisao",
+        json={"regra_id": "r1", "veredito": "aprovado", "revisor": "   "},
+    )
+
+    assert resposta.status_code == 422
+    assert ler_jsonl(decisoes) == []
 
 
 def test_veredito_invalido_e_recusado_na_validacao(ambiente):
