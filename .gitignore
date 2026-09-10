@@ -13,5 +13,7 @@ data/possiveis_omissoes.jsonl
 data/possiveis_falhas.jsonl
 data/possiveis_sem_padrao.jsonl
 data/manifesto.jsonl
+# revisao documental assistida: cita texto_exato dos documentos internos
+data/curadoria/
 docs/*.pdf
 docs/*.docx

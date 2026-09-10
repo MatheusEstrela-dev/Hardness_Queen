@@ -24,6 +24,7 @@ OMISSOES = Path("data/possiveis_omissoes.jsonl")
 MANIFESTO = Path("data/manifesto.jsonl")
 ADAPTADOR = Path("models/lora_treinado")
 DATASET = Path("data/dataset_treino.jsonl")
+PROVENIENCIA = DATASET.with_suffix(".proveniencia.jsonl")
 
 EXTENSOES_SUPORTADAS = {".pdf", ".docx"}
 
@@ -258,9 +259,40 @@ def versoes() -> None:
             print(f"  {pacote:16} {instalada}  DIVERGE da pregada {esperada} - o treino quebra")
 
 
+def dataset() -> None:
+    exemplos = _ler_jsonl(DATASET)
+    if not exemplos:
+        print("nenhum dataset ainda. rode: just dataset")
+        return
+
+    print(f"{len(exemplos)} exemplo(s) em {DATASET}")
+    niveis = Counter(e["completion"][0]["content"].split()[1] for e in exemplos)
+    for nivel, quantos in sorted(niveis.items()):
+        print(f"  {nivel:10} {quantos:4}")
+    maior = max(len(m["content"]) for e in exemplos for m in e["completion"])
+    print(f"  maior resposta: {maior} chars")
+
+    # A proveniencia diz de qual catalogo o dataset saiu. Sem essa linha nao da
+    # para saber se o adaptador foi treinado com limiares homologados ou com os
+    # limiares de partida, que ninguem revisou.
+    registros = _ler_jsonl(PROVENIENCIA)
+    if not registros:
+        print(f"  SEM proveniencia em {PROVENIENCIA} -- dataset gerado por versao antiga, regere")
+        return
+    if len(registros) != len(exemplos):
+        print(f"  proveniencia com {len(registros)} linha(s) para {len(exemplos)} exemplo(s) -- regere")
+    fontes = sorted({r["fonte_catalogo"] for r in registros})
+    print(f"  catalogo: {', '.join(fontes)}")
+    if "limiares_de_partida" in fontes:
+        print("  ATENCAO: limiares transcritos do POP, NENHUM homologado por revisor")
+    regras_citadas = sorted({r for registro in registros for r in registro["regras"]})
+    print(f"  {len(regras_citadas)} regra(s) citada(s): {', '.join(regras_citadas[:6])}")
+
+
 COMANDOS = {
     "versoes": versoes,
     "docs": docs,
+    "dataset": dataset,
     "chunks": chunks,
     "regras": regras,
     "reclassificar": reclassificar,

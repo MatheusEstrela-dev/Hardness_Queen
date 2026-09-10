@@ -186,10 +186,10 @@ ingestao: extrair-texto extrair-regras revisar
 dataset:
     {{python}} scripts/01.gerar_dataset.py
 
-# quantos exemplos existem hoje no dataset
+# quantos exemplos existem hoje no dataset, e de qual catalogo sairam
 [group('03 TREINO')]
 @dataset-stats:
-    {{python}} -c "import json; L=[json.loads(l) for l in open('data/dataset_treino.jsonl',encoding='utf-8')]; print('exemplos:', len(L)); print('turnos por exemplo:', sorted(set(len(e['messages']) for e in L))); print('chars no maior assistant:', max(len(m['content']) for e in L for m in e['messages'] if m['role']=='assistant'))"
+    {{python}} scripts/status.py dataset
 
 # etapa 02: treina o adaptador LoRA (QLoRA 4-bit) na T1000
 [group('03 TREINO')]
