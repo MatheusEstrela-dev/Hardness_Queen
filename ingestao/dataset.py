@@ -95,17 +95,54 @@ def _descrever_limiar(valor_min: float, valor_max: float | None, janela: int | N
     return f"{faixa} em {janela} hora" + ("s" if janela != 1 else "")
 
 
-def _observado(valor_min: float, valor_max: float | None) -> float:
+# Posicoes dentro da faixa onde amostrar um valor observado. Tres pontos --
+# logo acima do piso, no meio e perto do teto -- em vez de um so: o adaptador
+# precisa aprender que qualquer valor DENTRO da faixa dispara o mesmo nivel, e
+# nao decorar um numero especifico por nivel.
+POSICOES_NA_FAIXA = (0.15, 0.5, 0.85)
+
+# Multiplicadores para limiar aberto ("acima de X"), pelo mesmo motivo.
+ACIMA_DE = (1.05, 1.3, 1.8)
+
+
+def _observado(valor_min: float, valor_max: float | None, posicao: int) -> float:
     """Um valor observado plausivel dentro da faixa do limiar."""
     if valor_max is not None:
-        return round(valor_min + (valor_max - valor_min) * 0.6, 1)
-    return round(valor_min * 1.15, 1)
+        return round(valor_min + (valor_max - valor_min) * POSICOES_NA_FAIXA[posicao], 1)
+    return round(valor_min * ACIMA_DE[posicao], 1)
 
 
-def _exemplo(cor: str, janela: int | None, valor_min: float, valor_max: float | None, local: tuple) -> dict:
+# Tres redacoes para a mesma informacao. Com um molde unico o adaptador decora
+# a frase em vez de aprender a estrutura; variando a forma e mantendo o
+# conteudo, ele aprende o que precisa estar no alerta, nao como soa.
+MOLDES = (
+    (
+        "{cabecalho} O municipio de {municipio}, na mesorregiao {mesorregiao}, registrou "
+        "acumulado de {observado:g} mm em {janela}, ultrapassando o limiar de {limiar} "
+        "definido para este nivel. {resposta}"
+    ),
+    (
+        "{cabecalho} Registro de {observado:g} mm em {janela} no municipio de {municipio} "
+        "({mesorregiao}). O valor supera o limiar de {limiar}. {resposta}"
+    ),
+    (
+        "{cabecalho} {municipio}, mesorregiao {mesorregiao}: acumulado de {observado:g} mm "
+        "em {janela} acima do limiar de {limiar} estabelecido para o nivel. {resposta}"
+    ),
+)
+
+
+def _exemplo(
+    cor: str,
+    janela: int | None,
+    valor_min: float,
+    valor_max: float | None,
+    local: tuple,
+    posicao: int,
+) -> dict:
     municipio, mesorregiao = local
     nivel = nivel_de(cor)
-    observado = _observado(valor_min, valor_max)
+    observado = _observado(valor_min, valor_max, posicao)
     limiar = _descrever_limiar(valor_min, valor_max, janela)
     janela_txt = f"{janela}h" if janela else "1h"
 
@@ -115,18 +152,21 @@ def _exemplo(cor: str, janela: int | None, valor_min: float, valor_max: float | 
         f"Limiar do nivel {nivel.cor} ({nivel.situacao}): {limiar}. "
         "Redija o alerta."
     )
-    resposta = (
-        f"NIVEL {nivel.cor.upper()} - {nivel.situacao}. "
-        f"O municipio de {municipio}, na mesorregiao {mesorregiao}, registrou acumulado de "
-        f"{observado:g} mm em {janela_txt}, ultrapassando o limiar de {limiar} definido para "
-        f"este nivel. {nivel.resposta}"
+    resposta = MOLDES[posicao % len(MOLDES)].format(
+        cabecalho=f"NIVEL {nivel.cor.upper()} - {nivel.situacao}.",
+        municipio=municipio,
+        mesorregiao=mesorregiao,
+        observado=observado,
+        janela=janela_txt,
+        limiar=limiar,
+        resposta=nivel.resposta,
     )
     return {
-        "messages": [
+        "prompt": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": pergunta},
-            {"role": "assistant", "content": resposta},
-        ]
+        ],
+        "completion": [{"role": "assistant", "content": resposta}],
     }
 
 
@@ -140,7 +180,7 @@ def _exemplo_verde(local: tuple) -> dict:
     municipio, mesorregiao = local
     nivel = nivel_de("verde")
     return {
-        "messages": [
+        "prompt": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
@@ -149,6 +189,8 @@ def _exemplo_verde(local: tuple) -> dict:
                     "Nenhum limiar de alerta ultrapassado. Redija o informe."
                 ),
             },
+        ],
+        "completion": [
             {
                 "role": "assistant",
                 "content": (
@@ -156,8 +198,8 @@ def _exemplo_verde(local: tuple) -> dict:
                     f"na mesorregiao {mesorregiao}, registrou 12 mm em 24h, abaixo dos limiares "
                     f"de alerta. {nivel.resposta}"
                 ),
-            },
-        ]
+            }
+        ],
     }
 
 
@@ -170,7 +212,7 @@ def _exemplo_dois_limiares(local: tuple) -> dict:
     municipio, mesorregiao = local
     nivel = mais_grave(["amarelo", "vermelho"])
     return {
-        "messages": [
+        "prompt": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
@@ -180,6 +222,8 @@ def _exemplo_dois_limiares(local: tuple) -> dict:
                     "(limiar amarelo: superior a 60 mm). Redija o alerta."
                 ),
             },
+        ],
+        "completion": [
             {
                 "role": "assistant",
                 "content": (
@@ -188,8 +232,8 @@ def _exemplo_dois_limiares(local: tuple) -> dict:
                     "de entre 70 mm e 90 mm, e 65 mm em 24h, acima do limiar de 60 mm. Prevalece o "
                     f"nivel de maior gravidade. {nivel.resposta}"
                 ),
-            },
-        ]
+            }
+        ],
     }
 
 
@@ -208,11 +252,20 @@ def gerar(caminho_saida: Path = SAIDA, caminho_aprovadas: Path = APROVADAS) -> i
             f"'{caminho_aprovadas}' vazio ou inexistente, NENHUM limiar passou por revisao humana"
         )
 
+    # Combinatoria deliberada: cada limiar vira um exemplo por municipio e por
+    # posicao dentro da faixa. Dez exemplos ensinam a abertura do alerta e nada
+    # mais -- medido: o adaptador treinado com 10 acertava "NIVEL VERMELHO" e
+    # depois perdia a linha. O material e o mesmo; o que muda e a repeticao do
+    # padrao com conteudo variado, que e o que treina uma tarefa de preencher
+    # molde como esta (quem decide o nivel e o banco, nao o modelo).
     exemplos = []
-    for indice, (cor, janela, valor_min, valor_max) in enumerate(limiares):
-        exemplos.append(_exemplo(cor, janela, valor_min, valor_max, LOCAIS[indice % len(LOCAIS)]))
-    exemplos.append(_exemplo_verde(LOCAIS[0]))
-    exemplos.append(_exemplo_dois_limiares(LOCAIS[1]))
+    for cor, janela, valor_min, valor_max in limiares:
+        for local in LOCAIS:
+            for posicao in range(len(POSICOES_NA_FAIXA)):
+                exemplos.append(_exemplo(cor, janela, valor_min, valor_max, local, posicao))
+    for local in LOCAIS:
+        exemplos.append(_exemplo_verde(local))
+        exemplos.append(_exemplo_dois_limiares(local))
 
     caminho_saida.parent.mkdir(parents=True, exist_ok=True)
     with caminho_saida.open("w", encoding="utf-8") as arquivo:
@@ -221,7 +274,7 @@ def gerar(caminho_saida: Path = SAIDA, caminho_aprovadas: Path = APROVADAS) -> i
 
     print(f"Fonte dos limiares: {fonte}")
     print(f"{len(exemplos)} exemplos escritos em '{caminho_saida}'.")
-    niveis_cobertos = {e["messages"][2]["content"].split()[1] for e in exemplos}
+    niveis_cobertos = {e["completion"][0]["content"].split()[1] for e in exemplos}
     print(f"Niveis cobertos: {', '.join(sorted(niveis_cobertos))}")
     faltando = {n.cor.upper() for n in ESCALA} - niveis_cobertos
     if faltando:

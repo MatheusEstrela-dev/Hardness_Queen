@@ -45,7 +45,7 @@ def test_dataset_cobre_os_cinco_niveis(tmp_path):
     gerador.gerar(saida, tmp_path / "nao_existe.jsonl")
 
     exemplos = [json.loads(l) for l in saida.read_text(encoding="utf-8").splitlines()]
-    niveis = {e["messages"][2]["content"].split()[1] for e in exemplos}
+    niveis = {e["completion"][0]["content"].split()[1] for e in exemplos}
     assert niveis == {n.cor.upper() for n in ESCALA}
 
 
@@ -108,7 +108,23 @@ def test_toda_resposta_do_dataset_cita_o_nivel_e_a_situacao(tmp_path):
     gerador.gerar(saida, tmp_path / "nao_existe.jsonl")
 
     for linha in saida.read_text(encoding="utf-8").splitlines():
-        resposta = json.loads(linha)["messages"][2]["content"]
+        resposta = json.loads(linha)["completion"][0]["content"]
         assert resposta.startswith("NIVEL "), resposta[:40]
         cor = resposta.split()[1].lower()
         assert POR_COR[cor].situacao in resposta
+
+
+def test_dataset_e_prompt_completion_nao_conversacional(tmp_path):
+    # O formato importa: assistant_only_loss, a flag de mascara para dataset
+    # conversacional, exige marcadores {% generation %} no chat template, que o
+    # Qwen2.5 base nao tem -- o TRL falha alto. Com prompt/completion o
+    # mascaramento nao depende do template.
+    saida = tmp_path / "dataset.jsonl"
+
+    gerador.gerar(saida, tmp_path / "nao_existe.jsonl")
+
+    for linha in saida.read_text(encoding="utf-8").splitlines():
+        exemplo = json.loads(linha)
+        assert set(exemplo) == {"prompt", "completion"}, exemplo.keys()
+        assert [m["role"] for m in exemplo["prompt"]] == ["system", "user"]
+        assert [m["role"] for m in exemplo["completion"]] == ["assistant"]
