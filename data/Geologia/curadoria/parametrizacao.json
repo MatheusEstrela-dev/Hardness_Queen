@@ -1,0 +1,42 @@
+{
+  "versao": 1,
+  "etapa": "extracao",
+  "status": "pendente_homologacao",
+  "uso_operacional": false,
+  "granularidade_temporal": "minutos",
+  "ialc": {
+    "aba": "Limiar de Aproximação",
+    "entidade": "municipio",
+    "codigo_ibge_coluna": "D",
+    "chuva_referencia_coluna": "I",
+    "unidade": "mm",
+    "janela_minutos": null,
+    "percentuais_cabecalho": {
+      "K": 25.0,
+      "L": 50.0,
+      "M": 75.0,
+      "N": 90.0,
+      "O": 100.0
+    },
+    "aplicar_percentuais": false,
+    "formula": null,
+    "observacao": "Percentuais sao rotulos da fonte, nao formulas homologadas"
+  },
+  "plancon": {
+    "preservar_evento": true,
+    "preservar_escala_fonte": true,
+    "operador_limiar": null,
+    "mapa_cores": null,
+    "precedencia_sobre_ialc": null
+  },
+  "qgis": {
+    "natureza": "simbologia_cartografica",
+    "preservar_valor_e_legenda": true
+  },
+  "revisao": {
+    "exige_fonte": true,
+    "exige_revisor": true,
+    "exige_data_homologacao": true,
+    "conversao_para_regra_meteorologia": false
+  }
+}

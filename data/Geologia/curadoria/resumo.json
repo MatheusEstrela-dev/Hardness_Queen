@@ -1,0 +1,44 @@
+{
+  "fontes": {
+    "geo": "C:\\Users\\x24679188\\Documents\\GEOPROCESSAMENTO",
+    "plancon": "C:\\Users\\x24679188\\Documents\\Bando de Dados\\Bind mount Legado\\Plano de contingencia"
+  },
+  "arquivos_por_acervo": {
+    "geo": 22702,
+    "plancon": 752
+  },
+  "estados_documentos": {
+    "texto_nativo": 893,
+    "texto_parcial": 242,
+    "sem_camada_texto": 195
+  },
+  "municipios_ialc": 853,
+  "municipios_com_faixas_preenchidas": 0,
+  "trechos_candidatos": 5992,
+  "limiares_plancon_candidatos": 40,
+  "classes_qgis": 5518,
+  "uso_operacional": false,
+  "limites": [
+    "PDF sem OCR; paginas sem texto ficam registradas para conferencia visual",
+    "KML, SHP, DBF, rasters, DOC legado e demais planilhas apenas inventariados",
+    "Parser de limiares restrito a tabelas de quatro niveis com janela e unidade explicitas",
+    "Classes QGIS sao simbologia, nao limiares de alerta",
+    "Operadores, percentuais IALC, janelas e precedencia aguardam homologacao"
+  ],
+  "classes_qgis_raster": 1850,
+  "entradas_indice_plancon": 755,
+  "entradas_indice_com_observacao": 115,
+  "estados_por_acervo": {
+    "geo": {
+      "texto_nativo": 519,
+      "texto_parcial": 25,
+      "sem_camada_texto": 37
+    },
+    "plancon": {
+      "texto_nativo": 374,
+      "texto_parcial": 217,
+      "sem_camada_texto": 158
+    }
+  },
+  "total_chunks": 99316
+}

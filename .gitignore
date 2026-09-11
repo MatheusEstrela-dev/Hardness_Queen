@@ -18,6 +18,22 @@ data/*/manifesto.jsonl
 # revisao documental assistida: cita texto_exato dos documentos internos
 data/curadoria/
 data/*/curadoria/
+
+# Geo versionado a pedido do autor, que confirmou o repositorio PRIVADO: os
+# produtos processados (auditoria do IALC, limiares dos PlanCons, inventario
+# do acervo, a amostra de Ipatinga) e a evidencia que sustenta cada regra.
+#
+# FICA FORA o despejo bruto de data/Geologia/curadoria/chunks/: 180 MB com o
+# texto dos 721 Planos de Contingencia, 595 deles com telefone e nome de
+# pessoal das prefeituras. Nenhuma regra aprovada depende dele, e git guarda
+# para sempre o que entra uma vez.
+!data/Geologia/regras_propostas.jsonl
+!data/Geologia/regras_rejeitadas.jsonl
+!data/Geologia/possiveis_omissoes.jsonl
+!data/Geologia/possiveis_sem_padrao.jsonl
+!data/Geologia/manifesto.jsonl
+!data/Geologia/curadoria/
+data/Geologia/curadoria/chunks/
 # documentos de origem de cada area (docs/superpowers, as specs, fica versionado)
 docs/*/*.pdf
 docs/*/*.docx

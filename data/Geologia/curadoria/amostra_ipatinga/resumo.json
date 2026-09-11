@@ -1,0 +1,106 @@
+{
+  "municipio": "Ipatinga",
+  "codigo_ibge_fonte": "3131307",
+  "escopo": "amostragem inicial da etapa de extracao",
+  "registros": 41,
+  "referencia_ialc_mm": 47,
+  "janela_ialc_confirmada": false,
+  "fonte_ialc_celula": "Limiar de Aproximação!I358",
+  "pagina_pdf_plancon": 18,
+  "pagina_impressa_plancon": 12,
+  "tabelas_mm": {
+    "deslizamento": [
+      {
+        "janela_minutos": 60.0,
+        "observacao": 5.0,
+        "atencao": 25.0,
+        "critico": 35.0,
+        "emergencial": 50.0
+      },
+      {
+        "janela_minutos": 1440.0,
+        "observacao": 25.0,
+        "atencao": 35.0,
+        "critico": 80.0,
+        "emergencial": 90.0
+      },
+      {
+        "janela_minutos": 4320.0,
+        "observacao": 35.0,
+        "atencao": 80.0,
+        "critico": 90.0,
+        "emergencial": 110.0
+      },
+      {
+        "janela_minutos": 5760.0,
+        "observacao": 80.0,
+        "atencao": 90.0,
+        "critico": 110.0,
+        "emergencial": 120.0
+      }
+    ],
+    "inundacao_e_alagamento": [
+      {
+        "janela_minutos": 15.0,
+        "observacao": 5.0,
+        "atencao": 10.0,
+        "critico": 15.0,
+        "emergencial": 50.0
+      },
+      {
+        "janela_minutos": 60.0,
+        "observacao": 20.0,
+        "atencao": 30.0,
+        "critico": 40.0,
+        "emergencial": 90.0
+      },
+      {
+        "janela_minutos": 240.0,
+        "observacao": 40.0,
+        "atencao": 50.0,
+        "critico": 60.0,
+        "emergencial": 130.0
+      },
+      {
+        "janela_minutos": 1440.0,
+        "observacao": 80.0,
+        "atencao": 90.0,
+        "critico": 100.0,
+        "emergencial": 210.0
+      },
+      {
+        "janela_minutos": 4320.0,
+        "observacao": 120.0,
+        "atencao": 130.0,
+        "critico": 140.0,
+        "emergencial": 250.0
+      },
+      {
+        "janela_minutos": 5760.0,
+        "observacao": 160.0,
+        "atencao": 170.0,
+        "critico": 180.0,
+        "emergencial": 370.0
+      }
+    ]
+  },
+  "uso_operacional": false,
+  "pendencias": [
+    "Confirmar significado e janela da referencia IALC de 47 mm.",
+    "Confirmar precedencia entre IALC e tabela municipal.",
+    "Confirmar operadores e vigencia antes de homologar."
+  ],
+  "vinculo_plancon": {
+    "acervo": "plancon",
+    "fonte_doc": "C:\\Users\\x24679188\\Documents\\Bando de Dados\\Bind mount Legado\\Plano de contingencia\\IPATINGA_2026-04-16.pdf",
+    "caminho_relativo": "IPATINGA_2026-04-16.pdf",
+    "fonte_hash": "e0d21d31c9c9c04e",
+    "municipios_candidatos": [
+      "3131307"
+    ],
+    "vinculo": "nome_indice_nao_homologado",
+    "estado_extracao": "texto_nativo",
+    "codigo_cedec_fonte": "3130",
+    "data_plano_indice": "16/04/2026"
+  }
+}

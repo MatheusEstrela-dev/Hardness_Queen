@@ -1,0 +1,1683 @@
+{
+  "contagens": {
+    "sem_correspondencia_por_nome": 300,
+    "igual_menor": 274,
+    "igual_media": 534,
+    "diferente_de_ambos": 19
+  },
+  "divergencias": [
+    {
+      "municipio": "Abadia dos Dourados",
+      "linha_ialc": 2,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Água Comprida",
+      "linha_ialc": 8,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Aguanil",
+      "linha_ialc": 9,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Aiuruoca",
+      "linha_ialc": 13,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Albertina",
+      "linha_ialc": 15,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Alpinópolis",
+      "linha_ialc": 21,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Alterosa",
+      "linha_ialc": 22,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Alto Jequitibá",
+      "linha_ialc": 24,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Andradas",
+      "linha_ialc": 30,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Andrelândia",
+      "linha_ialc": 31,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Araçaí",
+      "linha_ialc": 36,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Aracitaba",
+      "linha_ialc": 37,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Araguari",
+      "linha_ialc": 39,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Arantina",
+      "linha_ialc": 40,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Araporã",
+      "linha_ialc": 42,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Arceburgo",
+      "linha_ialc": 46,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Areado",
+      "linha_ialc": 48,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Augusto de Lima",
+      "linha_ialc": 54,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Bambuí",
+      "linha_ialc": 57,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Barra Longa",
+      "linha_ialc": 63,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Barroso",
+      "linha_ialc": 64,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Bias Fortes",
+      "linha_ialc": 74,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Biquinhas",
+      "linha_ialc": 76,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Boa Esperança",
+      "linha_ialc": 77,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Bocaina de Minas",
+      "linha_ialc": 78,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Bom Jardim de Minas",
+      "linha_ialc": 81,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Bom Jesus da Penha",
+      "linha_ialc": 82,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Bom Repouso",
+      "linha_ialc": 85,
+      "linha_historico": 58,
+      "referencia_mm": 117.0,
+      "menor_deflagrante_mm": 20.0,
+      "media_ocorrencias_mm": 20.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Bom Sucesso",
+      "linha_ialc": 86,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Bonfim",
+      "linha_ialc": 87,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Borda da Mata",
+      "linha_ialc": 90,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Botelhos",
+      "linha_ialc": 91,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Botumirim",
+      "linha_ialc": 92,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Brás Pires",
+      "linha_ialc": 93,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Brasilândia de Minas",
+      "linha_ialc": 94,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Brasília de Minas",
+      "linha_ialc": 95,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Braúnas",
+      "linha_ialc": 96,
+      "linha_historico": 62,
+      "referencia_mm": 77.0,
+      "menor_deflagrante_mm": 83.0,
+      "media_ocorrencias_mm": 83.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Buritis",
+      "linha_ialc": 102,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cabeceira Grande",
+      "linha_ialc": 104,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cabo Verde",
+      "linha_ialc": 105,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Conceição dos Ouros",
+      "linha_ialc": 107,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cachoeira Dourada",
+      "linha_ialc": 109,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Caetanópolis",
+      "linha_ialc": 110,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Camacho",
+      "linha_ialc": 115,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Campanha",
+      "linha_ialc": 120,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Campina Verde",
+      "linha_ialc": 122,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Campo do Meio",
+      "linha_ialc": 125,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Campo Florido",
+      "linha_ialc": 126,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Campos Altos",
+      "linha_ialc": 127,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Campos Gerais",
+      "linha_ialc": 128,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cantagalo",
+      "linha_ialc": 133,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Capela Nova",
+      "linha_ialc": 135,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Capetinga",
+      "linha_ialc": 137,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Capinópolis",
+      "linha_ialc": 139,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Capitão Enéas",
+      "linha_ialc": 141,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Caranaíba",
+      "linha_ialc": 145,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Carangola",
+      "linha_ialc": 147,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cachoeira de Minas",
+      "linha_ialc": 150,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Carmo da Cachoeira",
+      "linha_ialc": 153,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Carmo do Paranaíba",
+      "linha_ialc": 157,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Carneirinho",
+      "linha_ialc": 160,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Carrancas",
+      "linha_ialc": 161,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Carvalhos",
+      "linha_ialc": 163,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Casa Grande",
+      "linha_ialc": 164,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cascalho Rico",
+      "linha_ialc": 165,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cássia",
+      "linha_ialc": 166,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Catas Altas",
+      "linha_ialc": 168,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Catas Altas da Noruega",
+      "linha_ialc": 169,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cedro do Abaeté",
+      "linha_ialc": 173,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Central de Minas",
+      "linha_ialc": 174,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Centralina",
+      "linha_ialc": 175,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Chácara",
+      "linha_ialc": 176,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Claraval",
+      "linha_ialc": 182,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Claro dos Poções",
+      "linha_ialc": 183,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Comendador Gomes",
+      "linha_ialc": 187,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Conceição da Aparecida",
+      "linha_ialc": 189,
+      "linha_historico": 116,
+      "referencia_mm": 69.0,
+      "menor_deflagrante_mm": 1.0,
+      "media_ocorrencias_mm": 1.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Conceição da Barra de Minas",
+      "linha_ialc": 190,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Conceição das Alagoas",
+      "linha_ialc": 191,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Careaçu",
+      "linha_ialc": 192,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Conceição do Mato Dentro",
+      "linha_ialc": 194,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Conceição das Pedras",
+      "linha_ialc": 197,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Confins",
+      "linha_ialc": 199,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Congonhal",
+      "linha_ialc": 200,
+      "linha_historico": 121,
+      "referencia_mm": 48.0,
+      "menor_deflagrante_mm": 0.0,
+      "media_ocorrencias_mm": 0.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Congonhas do Norte",
+      "linha_ialc": 202,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Conquista",
+      "linha_ialc": 203,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Conselheiro Lafaiete",
+      "linha_ialc": 204,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Coqueiral",
+      "linha_ialc": 208,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cordisburgo",
+      "linha_ialc": 210,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cordislândia",
+      "linha_ialc": 211,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Corinto",
+      "linha_ialc": 212,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Coronel Pacheco",
+      "linha_ialc": 217,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Coronel Xavier Chaves",
+      "linha_ialc": 218,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Córrego Danta",
+      "linha_ialc": 219,
+      "linha_historico": 131,
+      "referencia_mm": 73.0,
+      "menor_deflagrante_mm": 64.0,
+      "media_ocorrencias_mm": 64.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Córrego Fundo",
+      "linha_ialc": 221,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cristais",
+      "linha_ialc": 225,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cristiano Otoni",
+      "linha_ialc": 227,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cruzeiro da Fortaleza",
+      "linha_ialc": 230,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Cruzília",
+      "linha_ialc": 231,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Curvelo",
+      "linha_ialc": 234,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Datas",
+      "linha_ialc": 235,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Delfinópolis",
+      "linha_ialc": 237,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Desterro do Melo",
+      "linha_ialc": 241,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Dionísio",
+      "linha_ialc": 244,
+      "linha_historico": 147,
+      "referencia_mm": 69.0,
+      "menor_deflagrante_mm": 20.0,
+      "media_ocorrencias_mm": 64.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Divinolândia de Minas",
+      "linha_ialc": 248,
+      "linha_historico": 151,
+      "referencia_mm": 38.0,
+      "menor_deflagrante_mm": 5.0,
+      "media_ocorrencias_mm": 5.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Divisa Nova",
+      "linha_ialc": 251,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Dom Bosco",
+      "linha_ialc": 253,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Dona Euzébia",
+      "linha_ialc": 258,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Dores do Turvo",
+      "linha_ialc": 262,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Doresópolis",
+      "linha_ialc": 263,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Douradoquara",
+      "linha_ialc": 264,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Elói Mendes",
+      "linha_ialc": 266,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Espinosa",
+      "linha_ialc": 274,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Espírito Santo do Dourado",
+      "linha_ialc": 275,
+      "linha_historico": 171,
+      "referencia_mm": 91.0,
+      "menor_deflagrante_mm": 2.0,
+      "media_ocorrencias_mm": 2.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Estiva",
+      "linha_ialc": 276,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Estrela do Sul",
+      "linha_ialc": 279,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Fernandes Tourinho",
+      "linha_ialc": 288,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Formoso",
+      "linha_ialc": 293,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Fortaleza de Minas",
+      "linha_ialc": 294,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Fortuna de Minas",
+      "linha_ialc": 295,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Frei Inocêncio",
+      "linha_ialc": 301,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Frei Lagonegro",
+      "linha_ialc": 302,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Fronteira",
+      "linha_ialc": 303,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Funilândia",
+      "linha_ialc": 307,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Glaucilândia",
+      "linha_ialc": 310,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Goianá",
+      "linha_ialc": 312,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Gonçalves",
+      "linha_ialc": 313,
+      "linha_historico": 197,
+      "referencia_mm": 30.0,
+      "menor_deflagrante_mm": 10.0,
+      "media_ocorrencias_mm": 10.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Gouveia",
+      "linha_ialc": 315,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Grupiara",
+      "linha_ialc": 318,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Guapé",
+      "linha_ialc": 320,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Guaraciama",
+      "linha_ialc": 322,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Guarará",
+      "linha_ialc": 325,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Guarda-Mor",
+      "linha_ialc": 326,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Guimarânia",
+      "linha_ialc": 329,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Gurinhatã",
+      "linha_ialc": 331,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Ibertioga",
+      "linha_ialc": 334,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Ibiracatu",
+      "linha_ialc": 337,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Ibiraci",
+      "linha_ialc": 338,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Ibitiúra de Minas",
+      "linha_ialc": 340,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Ibituruna",
+      "linha_ialc": 341,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Icaraí de Minas",
+      "linha_ialc": 342,
+      "linha_historico": 213,
+      "referencia_mm": 84.0,
+      "menor_deflagrante_mm": 9.0,
+      "media_ocorrencias_mm": 9.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Inconfidentes",
+      "linha_ialc": 349,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Indianópolis",
+      "linha_ialc": 351,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Ingaí",
+      "linha_ialc": 352,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Ipiaçu",
+      "linha_ialc": 359,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Ipuiúna",
+      "linha_ialc": 360,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Itacambira",
+      "linha_ialc": 365,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Itamarati de Minas",
+      "linha_ialc": 371,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Itambé do Mato Dentro",
+      "linha_ialc": 373,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Itamogi",
+      "linha_ialc": 374,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Itamonte",
+      "linha_ialc": 375,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Itanhandu",
+      "linha_ialc": 376,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Itanhomi",
+      "linha_ialc": 377,
+      "linha_historico": 237,
+      "referencia_mm": 38.0,
+      "menor_deflagrante_mm": 0.0,
+      "media_ocorrencias_mm": 0.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Itapagipe",
+      "linha_ialc": 379,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Itapeva",
+      "linha_ialc": 381,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Itaú de Minas",
+      "linha_ialc": 383,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Itaverava",
+      "linha_ialc": 385,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Ituiutaba",
+      "linha_ialc": 388,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Itumirim",
+      "linha_ialc": 389,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Iturama",
+      "linha_ialc": 390,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Jacuí",
+      "linha_ialc": 394,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Jacutinga",
+      "linha_ialc": 395,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Janaúba",
+      "linha_ialc": 399,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Japaraíba",
+      "linha_ialc": 401,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Jequitinhonha",
+      "linha_ialc": 408,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "José Raydan",
+      "linha_ialc": 417,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Josenópolis",
+      "linha_ialc": 418,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Juramento",
+      "linha_ialc": 421,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Juruaia",
+      "linha_ialc": 422,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Lagamar",
+      "linha_ialc": 425,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Lagoa Dourada",
+      "linha_ialc": 428,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Lagoa Grande",
+      "linha_ialc": 430,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Lagoa Santa",
+      "linha_ialc": 431,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Lajinha",
+      "linha_ialc": 432,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Lassance",
+      "linha_ialc": 436,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Leopoldina",
+      "linha_ialc": 440,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Liberdade",
+      "linha_ialc": 441,
+      "linha_historico": 278,
+      "referencia_mm": 13.0,
+      "menor_deflagrante_mm": 10.0,
+      "media_ocorrencias_mm": 10.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Limeira do Oeste",
+      "linha_ialc": 443,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Madre de Deus de Minas",
+      "linha_ialc": 451,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Mar de Espanha",
+      "linha_ialc": 458,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Marmelópolis",
+      "linha_ialc": 466,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Materlândia",
+      "linha_ialc": 470,
+      "linha_historico": 303,
+      "referencia_mm": 54.0,
+      "menor_deflagrante_mm": 9.0,
+      "media_ocorrencias_mm": 9.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Mathias Lobato",
+      "linha_ialc": 472,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Matias Barbosa",
+      "linha_ialc": 473,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Matutina",
+      "linha_ialc": 478,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Medeiros",
+      "linha_ialc": 479,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Minas Novas",
+      "linha_ialc": 484,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Minduri",
+      "linha_ialc": 485,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Miravânia",
+      "linha_ialc": 489,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Moema",
+      "linha_ialc": 491,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Monjolos",
+      "linha_ialc": 492,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Monte Carmelo",
+      "linha_ialc": 498,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Monte Sião",
+      "linha_ialc": 501,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Morada Nova de Minas",
+      "linha_ialc": 504,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Morro da Garça",
+      "linha_ialc": 505,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Nacip Raydan",
+      "linha_ialc": 511,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Natalândia",
+      "linha_ialc": 514,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Natércia",
+      "linha_ialc": 515,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Nova Belém",
+      "linha_ialc": 519,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Nova Módica",
+      "linha_ialc": 522,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Nova Ponte",
+      "linha_ialc": 523,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Nova Resende",
+      "linha_ialc": 525,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Olaria",
+      "linha_ialc": 531,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Olhos-d'Água",
+      "linha_ialc": 532,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Olímpio Noronha",
+      "linha_ialc": 533,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Oliveira Fortes",
+      "linha_ialc": 535,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Ouro Fino",
+      "linha_ialc": 540,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Pai Pedro",
+      "linha_ialc": 545,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Paineiras",
+      "linha_ialc": 546,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Pains",
+      "linha_ialc": 547,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Paiva",
+      "linha_ialc": 548,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Palmópolis",
+      "linha_ialc": 550,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Paraopeba",
+      "linha_ialc": 556,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Passa Vinte",
+      "linha_ialc": 559,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Passabém",
+      "linha_ialc": 560,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Passos",
+      "linha_ialc": 561,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Patis",
+      "linha_ialc": 562,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Paula Cândido",
+      "linha_ialc": 566,
+      "linha_historico": 365,
+      "referencia_mm": 16.0,
+      "menor_deflagrante_mm": 7.0,
+      "media_ocorrencias_mm": 7.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Paulistas",
+      "linha_ialc": 567,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Pedra do Indaiá",
+      "linha_ialc": 573,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Pedra Dourada",
+      "linha_ialc": 574,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Pedrinópolis",
+      "linha_ialc": 577,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Pedro Teixeira",
+      "linha_ialc": 579,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Perdizes",
+      "linha_ialc": 583,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Piau",
+      "linha_ialc": 587,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Piedade do Rio Grande",
+      "linha_ialc": 590,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Pimenta",
+      "linha_ialc": 592,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Pingo-D'Água",
+      "linha_ialc": 593,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Pirajuba",
+      "linha_ialc": 596,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Piranga",
+      "linha_ialc": 597,
+      "linha_historico": 385,
+      "referencia_mm": 67.0,
+      "menor_deflagrante_mm": 57.0,
+      "media_ocorrencias_mm": 87.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Piranguinho",
+      "linha_ialc": 599,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Piraúba",
+      "linha_ialc": 602,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Piumhi",
+      "linha_ialc": 604,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Planura",
+      "linha_ialc": 605,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Poços de Caldas",
+      "linha_ialc": 607,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Prados",
+      "linha_ialc": 618,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Pratápolis",
+      "linha_ialc": 620,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Pratinha",
+      "linha_ialc": 621,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Presidente Kubitschek",
+      "linha_ialc": 624,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Prudente de Morais",
+      "linha_ialc": 626,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Quartel Geral",
+      "linha_ialc": 627,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Queluzito",
+      "linha_ialc": 628,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Riachinho",
+      "linha_ialc": 636,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Rio Acima",
+      "linha_ialc": 640,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Rio Doce",
+      "linha_ialc": 643,
+      "linha_historico": 417,
+      "referencia_mm": 85.0,
+      "menor_deflagrante_mm": 2.0,
+      "media_ocorrencias_mm": 6.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Rio Espera",
+      "linha_ialc": 644,
+      "linha_historico": 418,
+      "referencia_mm": 56.0,
+      "menor_deflagrante_mm": 10.0,
+      "media_ocorrencias_mm": 10.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Rio Paranaíba",
+      "linha_ialc": 647,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Rochedo de Minas",
+      "linha_ialc": 654,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Rodeiro",
+      "linha_ialc": 655,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Romaria",
+      "linha_ialc": 656,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Salto da Divisa",
+      "linha_ialc": 664,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Santa Bárbara do Leste",
+      "linha_ialc": 666,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Santa Bárbara do Monte Verde",
+      "linha_ialc": 667,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Santa Juliana",
+      "linha_ialc": 675,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Santa Rita de Ibitipoca",
+      "linha_ialc": 682,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Santa Rita de Jacutinga",
+      "linha_ialc": 683,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Santa Rita de Minas",
+      "linha_ialc": 684,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Santa Rita do Sapucaí",
+      "linha_ialc": 686,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Santa Vitória",
+      "linha_ialc": 688,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Santana da Vargem",
+      "linha_ialc": 689,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Santana de Cataguases",
+      "linha_ialc": 690,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Santana do Garambéu",
+      "linha_ialc": 693,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Santana do Riacho",
+      "linha_ialc": 697,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Santo Antônio do Rio Abaixo",
+      "linha_ialc": 706,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Bento Abade",
+      "linha_ialc": 709,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Brás do Suaçuí",
+      "linha_ialc": 710,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Francisco de Sales",
+      "linha_ialc": 716,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Francisco do Glória",
+      "linha_ialc": 717,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Geraldo",
+      "linha_ialc": 718,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São João Batista do Glória",
+      "linha_ialc": 727,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Joao da Mata",
+      "linha_ialc": 729,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São João do Manhuaçu",
+      "linha_ialc": 733,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São João Evangelista",
+      "linha_ialc": 738,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São João Nepomuceno",
+      "linha_ialc": 739,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São José da Barra",
+      "linha_ialc": 741,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São José do Alegre",
+      "linha_ialc": 745,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São José do Divino",
+      "linha_ialc": 746,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Lourenço",
+      "linha_ialc": 750,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Pedro da União",
+      "linha_ialc": 752,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Romão",
+      "linha_ialc": 755,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Sebastião do Maranhão",
+      "linha_ialc": 760,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Sebastião do Oeste",
+      "linha_ialc": 761,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Sebastião do Paraíso",
+      "linha_ialc": 762,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Sebastião do Rio Verde",
+      "linha_ialc": 764,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Tomás de Aquino",
+      "linha_ialc": 766,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Tomé das Letras",
+      "linha_ialc": 767,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "São Vicente de Minas",
+      "linha_ialc": 768,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Sapucaí-Mirim",
+      "linha_ialc": 769,
+      "linha_historico": 503,
+      "referencia_mm": 54.0,
+      "menor_deflagrante_mm": 1.0,
+      "media_ocorrencias_mm": 1.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Senador Amaral",
+      "linha_ialc": 773,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Senador Cortes",
+      "linha_ialc": 774,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Senador José Bento",
+      "linha_ialc": 776,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Seritinga",
+      "linha_ialc": 782,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Serra da Saudade",
+      "linha_ialc": 784,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Serra do Salitre",
+      "linha_ialc": 785,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Serra dos Aimorés",
+      "linha_ialc": 786,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Serrania",
+      "linha_ialc": 787,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Serranos",
+      "linha_ialc": 789,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Silveirânia",
+      "linha_ialc": 793,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Taiobeiras",
+      "linha_ialc": 800,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Tapira",
+      "linha_ialc": 802,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Tiradentes",
+      "linha_ialc": 809,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Tiros",
+      "linha_ialc": 810,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Toledo",
+      "linha_ialc": 813,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Três Marias",
+      "linha_ialc": 816,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Três Pontas",
+      "linha_ialc": 817,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Tupaciguara",
+      "linha_ialc": 819,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Turvolândia",
+      "linha_ialc": 821,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Uberlândia",
+      "linha_ialc": 826,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "União de Minas",
+      "linha_ialc": 829,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Uruana de Minas",
+      "linha_ialc": 830,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Vargem Bonita",
+      "linha_ialc": 834,
+      "linha_historico": 546,
+      "referencia_mm": 32.0,
+      "menor_deflagrante_mm": 6.0,
+      "media_ocorrencias_mm": 6.0,
+      "motivo": "referencia_diferente_de_menor_e_media"
+    },
+    {
+      "municipio": "Varginha",
+      "linha_ialc": 836,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Varjão de Minas",
+      "linha_ialc": 837,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Varzelândia",
+      "linha_ialc": 839,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Vazante",
+      "linha_ialc": 840,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Veríssimo",
+      "linha_ialc": 843,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Vermelho Novo",
+      "linha_ialc": 844,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Virginópolis",
+      "linha_ialc": 850,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Volta Grande",
+      "linha_ialc": 853,
+      "motivo": "sem_correspondencia_por_nome"
+    },
+    {
+      "municipio": "Wenceslau Braz",
+      "linha_ialc": 854,
+      "motivo": "sem_correspondencia_por_nome"
+    }
+  ],
+  "metodo": "comparacao por nome sem acentos; igualdade nao comprova metodologia",
+  "formulas_armazenadas": 0
+}
