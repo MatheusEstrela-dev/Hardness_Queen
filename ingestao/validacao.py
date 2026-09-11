@@ -88,6 +88,44 @@ def extremos_citados(valor_min: float | None, valor_max: float | None, trecho: s
     return True
 
 
+# Como cada unidade do vocabulario aparece escrita num documento. "mm" exclui
+# "mm/h" de proposito, e vice-versa: e exatamente a troca entre as duas que
+# esta checagem existe para pegar.
+_FORMAS_DA_UNIDADE: dict[str, re.Pattern] = {
+    unidade: re.compile(padrao, re.IGNORECASE)
+    for unidade, padrao in {
+        "mm": r"\d\s*mm\b(?!\s*/\s*h)|milimetros?(?!\s*por\s*hora)",
+        "mm/h": r"mm\s*/\s*h|mm\s*por\s*hora|milimetros?\s*por\s*hora",
+        "m": r"\d\s*m\b(?!\s*/)|\bmetros?\b(?!\s*cubicos)",
+        "m3/s": r"m[3³]\s*/\s*s|metros?\s*cubicos",
+        "km/h": r"km\s*/\s*h|quilometros?\s*por\s*hora",
+        "kg/m2": r"kg\s*/\s*m",
+        "dBZ": r"dbz",
+        "celsius": r"°|º|graus|celsius|\d\s*c\b",
+    }.items()
+}
+
+
+def unidade_citada(unidade: str, trecho: str) -> bool:
+    """A unidade da regra aparece escrita no trecho que a sustenta?
+
+    Mesmo principio de extremos_citados, para a unidade. Medido sobre as 124
+    propostas reais (81 da Meteorologia + 43 da amostra de Ipatinga): pega 10
+    regras que passavam como ok e estavam erradas -- "acumulados entre 30 mm e
+    70 mm em 1 hora" gravado como taxa em mm/h, o erro que a curadoria
+    independente apontou em 10 de 16 correcoes -- e a umidade relativa (%) de
+    Ipatinga lida como mm/h. Nenhuma regra correta derrubada.
+    """
+    sem_acento = "".join(
+        caractere for caractere in unicodedata.normalize("NFKD", trecho) if not unicodedata.combining(caractere)
+    )
+    # O texto cru entra junto porque a normalizacao transforma simbolos que
+    # sao a propria unidade ("º" vira "o", "²" vira "2").
+    alvo = f"{trecho.lower()}\n{sem_acento.lower()}"
+    forma = _FORMAS_DA_UNIDADE.get(unidade)
+    return bool(forma and forma.search(alvo))
+
+
 def _motivo_de_extremo_nao_citado(
     valor_min: float | None,
     valor_max: float | None,
@@ -194,18 +232,26 @@ def classificar(regra: RegraExtraida, texto_chunk: str) -> tuple[str, str | None
     if not extremos_citados(regra.valor_min, regra.valor_max, regra.fonte_trecho):
         motivo = _motivo_de_extremo_nao_citado(regra.valor_min, regra.valor_max, regra.fonte_trecho)
         return "suspeito", motivo
-    # 3) o valor e fisicamente sensato para a grandeza e unidade?
+    # 3) a unidade da regra aparece nesse trecho? Numero certo com unidade
+    #    trocada e outra grandeza: "30 mm em 1 hora" gravado como 30 mm/h, ou
+    #    "21% de umidade" gravado como 21 mm/h.
+    if not unidade_citada(regra.unidade, regra.fonte_trecho):
+        return "suspeito", (
+            f"unidade {regra.unidade} nao aparece no trecho citado; "
+            "o documento pode estar falando de outra grandeza"
+        )
+    # 4) o valor e fisicamente sensato para a grandeza e unidade?
     if not valor_plausivel(regra.grandeza, regra.unidade, regra.valor_min, regra.valor_max):
         motivo = _motivo_de_implausibilidade(regra.grandeza, regra.unidade, regra.valor_min, regra.valor_max)
         return "suspeito", motivo
-    # 4) taxa com janela e contradicao -- ver janela_coerente_com_grandeza.
+    # 5) taxa com janela e contradicao -- ver janela_coerente_com_grandeza.
     if not janela_coerente_com_grandeza(regra.grandeza, regra.janela_horas):
         return "suspeito", (
             f"{regra.grandeza} e taxa (a unidade ja tem o tempo) mas veio com "
             f"janela_horas={regra.janela_horas}; se o documento fala de acumulado "
             "numa janela, a grandeza deveria ser chuva_acumulada"
         )
-    # 5) faixa de um ponto so -- ver faixa_nao_degenerada.
+    # 6) faixa de um ponto so -- ver faixa_nao_degenerada.
     if not faixa_nao_degenerada(regra.valor_min, regra.valor_max):
         return "suspeito", (
             f"faixa degenerada: valor_min e valor_max sao ambos {regra.valor_min:g}; "

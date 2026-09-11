@@ -1,3 +1,5 @@
+import pytest
+
 from ingestao.contrato import RegraExtraida
 from ingestao.validacao import (
     classificar,
@@ -6,6 +8,7 @@ from ingestao.validacao import (
     pode_conter_limiar,
     suspeito_de_omissao,
     trecho_confere,
+    unidade_citada,
     valor_plausivel,
 )
 
@@ -351,6 +354,7 @@ def test_taxa_com_janela_e_suspeita():
     # Achado real: "60 mm em 24 horas" virou taxa_precipitacao de 60 mm/h com
     # janela 24. Sao coisas diferentes por um fator de 24, e codificada como
     # taxa a regra praticamente nunca dispara.
+    # Hoje a unidade barra primeiro: o trecho diz "mm", a regra diz "mm/h".
     regra = _regra(
         grandeza="taxa_precipitacao",
         unidade="mm/h",
@@ -360,6 +364,24 @@ def test_taxa_com_janela_e_suspeita():
         fonte_trecho="acumulados de 60 mm em 24 horas na regiao",
     )
     chunk = "previsao de acumulados de 60 mm em 24 horas na regiao central"
+
+    status, motivo = classificar(regra, chunk)
+
+    assert status == "suspeito"
+    assert "mm/h nao aparece" in motivo
+
+
+def test_taxa_citada_como_taxa_mas_com_janela_longa_e_suspeita():
+    # A checagem de janela continua valendo quando o trecho de fato fala em mm/h.
+    regra = _regra(
+        grandeza="taxa_precipitacao",
+        unidade="mm/h",
+        janela_horas=24,
+        valor_min=60.0,
+        valor_max=None,
+        fonte_trecho="taxas acima de 60 mm/h em 24 horas na regiao",
+    )
+    chunk = "registro de taxas acima de 60 mm/h em 24 horas na regiao central"
 
     status, motivo = classificar(regra, chunk)
 
@@ -414,9 +436,13 @@ def test_limiar_aberto_com_um_extremo_nulo_passa():
     assert classificar(regra, chunk) == ("ok", None)
 
 
-def test_taxa_com_janela_de_uma_hora_e_redundante_mas_coerente():
-    # "30 mm em uma hora" e ao mesmo tempo um acumulado de 1h e uma taxa de
-    # 30 mm/h. O documento escreve das duas formas; nao e erro.
+def test_acumulado_de_uma_hora_gravado_como_taxa_e_suspeito():
+    # Decisao revertida. Este teste afirmava o contrario: "30 mm em uma hora"
+    # seria ao mesmo tempo acumulado de 1h e taxa de 30 mm/h, entao grava-lo
+    # como taxa nao seria erro. A curadoria documental independente da
+    # Meteorologia discordou em 10 de 16 correcoes: "preservar mm e janela 1h,
+    # sem converter a regra para taxa". A regra diz o que o documento diz; a
+    # equivalencia numerica e conta de quem consome, nao da extracao.
     regra = _regra(
         grandeza="taxa_precipitacao",
         unidade="mm/h",
@@ -429,4 +455,44 @@ def test_taxa_com_janela_de_uma_hora_e_redundante_mas_coerente():
     )
     chunk = "acumulados podendo variar entre 6 mm e 30 mm em uma hora"
 
+    status, motivo = classificar(regra, chunk)
+
+    assert status == "suspeito"
+    assert "mm/h nao aparece" in motivo
+
+
+def test_taxa_escrita_em_mm_por_hora_com_janela_de_uma_hora_passa():
+    # O caso legitimo que o teste antigo queria proteger: o documento escreve
+    # a taxa como taxa. Janela de 1h e redundante mas coerente.
+    regra = _regra(
+        grandeza="taxa_precipitacao",
+        unidade="mm/h",
+        janela_horas=1,
+        escala="intensidade",
+        nivel="moderada",
+        valor_min=6.0,
+        valor_max=30.0,
+        fonte_trecho="Chuva moderada: entre 6 e 30 mm/h",
+    )
+    chunk = "classificacao da Chuva moderada: entre 6 e 30 mm/h na estacao"
+
     assert classificar(regra, chunk) == ("ok", None)
+
+
+@pytest.mark.parametrize(
+    "unidade,trecho,citada",
+    [
+        ("mm", "acumulado de 90 mm em 24 horas", True),
+        ("mm", "noventa milimetros em 24 horas", True),
+        ("mm", "taxa de 30 mm/h", False),
+        ("mm/h", "taxa de 30 mm/h", True),
+        ("mm/h", "30 milímetros por hora", True),
+        ("mm/h", "Entre 21% e 30%", False),
+        ("m", "cota de 3,5 m na regua", True),
+        ("m", "acumulado de 35 mm", False),
+        ("celsius", "topo abaixo de -60 ºC", True),
+        ("m3/s", "vazao de 1200 m³/s", True),
+    ],
+)
+def test_unidade_citada_reconhece_a_escrita_de_cada_unidade(unidade, trecho, citada):
+    assert unidade_citada(unidade, trecho) is citada

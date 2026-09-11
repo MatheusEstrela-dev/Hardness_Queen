@@ -226,6 +226,15 @@ def test_grupo_leva_o_nome_do_nivel_para_a_tela():
     assert agrupar_por_limiar([_proposta()])[0]["nivel_rotulo"] == "Atenção"
 
 
+def test_mesmo_municipio_escrito_com_caixa_diferente_e_um_grupo_so():
+    # Medido em Ipatinga: o parser tira "ipatinga" do nome do arquivo e o
+    # modelo copia "Ipatinga" do texto.
+    grupos = agrupar_por_limiar([_proposta(), _proposta(regra_id="r2", entidade_nome="Ipatinga")])
+
+    assert len(grupos) == 1
+    assert len(grupos[0]["fontes"]) == 2
+
+
 def test_proposta_gravada_antes_do_campo_sentido_continua_legivel():
     antiga = _proposta()
     del antiga["sentido"], antiga["nivel_rotulo"]

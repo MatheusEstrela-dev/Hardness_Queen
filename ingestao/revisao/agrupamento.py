@@ -8,6 +8,8 @@ ocorrencia -- hoje a fila mostra as tres como itens separados e o revisor
 decide o mesmo limiar tres vezes.
 """
 
+from ingestao.validacao import normalizar
+
 # O que torna duas regras "o mesmo limiar": concordancia nestes campos.
 #
 # entidade_tipo/entidade_nome/dominio ficaram de fora enquanto o acervo era
@@ -55,7 +57,14 @@ def _campo(regra: dict, campo: str):
 
 
 def chave_limiar(regra: dict) -> tuple:
-    return tuple(_campo(regra, campo) for campo in CAMPOS_CHAVE_LIMIAR)
+    # O nome da entidade e comparado normalizado: o parser de tabela tira o
+    # municipio do nome do arquivo ("ipatinga") e o modelo copia do texto
+    # ("Ipatinga"). Sem isso a mesma cidade abria dois grupos na fila. O valor
+    # gravado continua o original -- e ele que o redator escreve no alerta.
+    return tuple(
+        normalizar(_campo(regra, campo)) if campo == "entidade_nome" else _campo(regra, campo)
+        for campo in CAMPOS_CHAVE_LIMIAR
+    )
 
 
 def agrupar_por_limiar(regras: list[dict], campos_fonte: tuple[str, ...] = CAMPOS_FONTE) -> list[dict]:
