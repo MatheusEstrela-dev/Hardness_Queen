@@ -40,13 +40,36 @@ model = AutoModelForCausalLM.from_pretrained(
 model = prepare_model_for_kbit_training(model)
 model.gradient_checkpointing_enable() # Economiza muita VRAM em troca de processamento
 
+# So a linha do <|im_end|> e treinavel no vocabulario -- nao o lm_head inteiro.
+#
+# O problema: medido no Qwen2.5-3B BASE, a linha do <|im_end|> tem norma
+# 0.3838, percentil 1.6 do vocabulario, IDENTICA a de <|im_start|> e
+# <|fim_pad|>. Tres tokens distintos com a mesma norma sao linhas nunca
+# treinadas, paradas na inicializacao: o modelo base nunca aprendeu a EMITIR os
+# marcadores ChatML (o <|endoftext|>, que ele usa, esta no percentil 92). Como
+# tie_word_embeddings=True, essa linha e o proprio embedding, e uma LoRA restrita
+# a q/k/v/o nao alcanca a saida. Resultado: p(<|im_end|>) = 0.00036, rank 40, e
+# o adaptador escrevia o alerta certo e nunca parava. A loss nao denunciava:
+# -log(0.00036) numa posicao entre 113 da 0.070, e ela estancara em 0.08.
+#
+# A primeira correcao -- lm_head nos target_modules -- fez o adaptador parar e
+# CORROMPEU OS NOMES: "Ouro Prete", "Ouro Preco", "Diamantis", "Goverador
+# Valadares". A LoRA no lm_head mexe na saida do vocabulario inteiro e, treinada
+# com seis municipios, aprendeu a favorecer os tokens desses seis. Os testes de
+# nivel e de parada passaram com o nome errado; foi preciso ler o texto.
+#
+# trainable_token_indices treina so a linha escolhida. Medido antes de treinar,
+# perturbando o delta: o logit do <|im_end|> foi de -5.0 para 1.0, e a maior
+# mudanca em qualquer outro token do vocabulario foi 0.000000. Sao 2.048
+# parametros no lugar de 2,4 milhoes.
 peft_config = LoraConfig(
     r=16, 
     lora_alpha=32, 
     lora_dropout=0.05, 
     bias="none", 
     task_type="CAUSAL_LM",
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj"]
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+    trainable_token_indices=[tokenizer.convert_tokens_to_ids("<|im_end|>")],
 )
 
 model = get_peft_model(model, peft_config)
@@ -101,6 +124,12 @@ args = SFTConfig(
     # 0,36 para 0,20 e o defeito continuou identico: loss mede ajuste ao alvo,
     # e o alvo estava errado.
     completion_only_loss=True,
+    # "nll" em vez do padrao "chunked_nll": o TRL recusou o chunked quando o
+    # lm_head estava nos target_modules, e com trainable_token_indices o lm_head
+    # continua embrulhado pela PEFT (TrainableTokensWrapper). O chunked evita
+    # materializar os logits inteiros; aqui eles cabem com folga -- 336 tokens
+    # no maior exemplo x 151936 de vocabulario, ~200 MB em fp32, batch 1.
+    loss_type="nll",
 )
 
 # 6. Partida do Motor
