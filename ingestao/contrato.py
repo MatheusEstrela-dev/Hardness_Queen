@@ -42,22 +42,37 @@ Unidade = Literal["mm", "m", "m3/s", "km/h", "kg/m2", "dBZ", "celsius", "mm/h"]
 # como uma cor) reproduziria o erro ja corrigido neste projeto em que um
 # limiar estadual de chuva foi rotulado entidade_tipo=tipo_solo por falta de
 # opcao melhor no vocabulario.
-Escala = Literal["alerta_cor", "intensidade", "nivel_municipal"]
+#
+# - risco_ialc: as classes do IALC (planilha mantida pela CINDEC-CEDEC), um
+#   limiar de chuva por municipio calibrado pelo historico de desastres do
+#   S2iD. PREVALECE sobre o PlanCon quando os dois divergem (decisao do
+#   usuario, 2026-09-11). As classes sao percentuais do limiar do municipio
+#   (baixo 25%, moderado 50%, alto 75%, muito alto 90%, extremamente alto
+#   100%); a planilha so traz o numero dos 100%.
+Escala = Literal["alerta_cor", "intensidade", "nivel_municipal", "risco_ialc"]
 
 NIVEIS_ALERTA_COR: frozenset[str] = frozenset({"verde", "amarelo", "laranja", "vermelho", "roxo"})
 NIVEIS_INTENSIDADE: frozenset[str] = frozenset({"fraca", "moderada", "forte", "muito_forte", "extremo"})
 NIVEIS_MUNICIPAIS: frozenset[str] = frozenset({"n1", "n2", "n3", "n4", "n5"})
+NIVEIS_RISCO_IALC: frozenset[str] = frozenset(
+    {"risco_baixo", "risco_moderado", "risco_alto", "risco_muito_alto", "risco_extremamente_alto"}
+)
 
 NIVEIS_POR_ESCALA: dict[str, frozenset[str]] = {
     "alerta_cor": NIVEIS_ALERTA_COR,
     "intensidade": NIVEIS_INTENSIDADE,
     "nivel_municipal": NIVEIS_MUNICIPAIS,
+    "risco_ialc": NIVEIS_RISCO_IALC,
 }
 
+# Os niveis do IALC levam o prefixo "risco_" porque "moderado" e "alto" sem ele
+# ficariam a uma letra de "moderada" (intensidade) -- num Literal fechado, o
+# tipo de erro de digitacao que passa despercebido.
 Nivel = Literal[
     "verde", "amarelo", "laranja", "vermelho", "roxo",
     "fraca", "moderada", "forte", "muito_forte", "extremo",
     "n1", "n2", "n3", "n4", "n5",
+    "risco_baixo", "risco_moderado", "risco_alto", "risco_muito_alto", "risco_extremamente_alto",
 ]
 
 # Para que lado o limiar aponta. "acima": o nivel vale a partir do valor, mais

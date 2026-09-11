@@ -65,6 +65,7 @@ adaptador  := "models/lora_treinado"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "docs-status" "quantos PDF/DOCX esperam em docs/"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "extrair-texto" "etapa 03: docs/ -> chunks com procedencia"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "extrair-regras" "etapa 04: chunks -> regras (Qwen 7B local, LENTO)"
+    printf "  {{GREEN}}%-20s{{RESET}} %s\n" "importar-ialc PLAN" "etapa 06: IALC -> regras por municipio (sem GPU)"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "revisar" "etapa 05: sobe a fila de revisao em http://127.0.0.1:8100"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "ingestao" "esteira completa: extrai texto, extrai regras e abre a revisao"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "chunks-stats" "o que a etapa 03 produziu, por documento"
@@ -152,6 +153,12 @@ extrair-regras:
 [group('02 INGESTAO')]
 revisar:
     {{python}} scripts/05_revisar.py
+
+# etapa 06: importa o IALC (limiar de chuva por municipio) para a fila de revisao, sem GPU
+# ex.: just importar-ialc "C:/Users/x24679188/Documents/GEOPROCESSAMENTO/IALCxlsx 1.xlsx" --municipio Ipatinga
+[group('02 INGESTAO')]
+importar-ialc PLANILHA *ARGS:
+    {{python}} scripts/06_importar_ialc.py "{{PLANILHA}}" {{ARGS}}
 
 # esteira completa: extrai texto, extrai regras e abre a revisao
 [group('02 INGESTAO')]
