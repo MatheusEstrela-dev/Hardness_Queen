@@ -153,6 +153,27 @@ def test_reclassificar_marca_suspeito_quando_chunk_de_origem_sumiu(tmp_path, mon
     assert "1" in saida
 
 
+def test_reclassificar_marca_suspeito_proposta_que_viola_o_contrato_atual(tmp_path, monkeypatch, capsys):
+    # Caso real: 7 propostas gravadas sob o contrato anterior com
+    # janela_horas=0, todas inventadas a partir de trechos sem limiar. O
+    # contrato atual recusa janela nao positiva; o lote nao pode cair por isso.
+    propostas, pasta_chunks = _preparar_pastas(tmp_path, monkeypatch)
+    _escrever_jsonl(propostas, [_regra_proposta(janela_horas=0, status="ok"), _regra_proposta(regra_id="r2")])
+    _escrever_jsonl(
+        pasta_chunks / "doc.jsonl",
+        [{"chunk_id": "c1", "doc": "doc.docx", "pagina": None, "secao": "secao 1",
+          "texto": "risco de alagamento podendo variar entre 6 mm e 30 mm em uma hora"}],
+    )
+
+    status.reclassificar()
+
+    atualizadas = [json.loads(linha) for linha in propostas.read_text(encoding="utf-8").splitlines()]
+    assert atualizadas[0]["status"] == "suspeito"
+    assert "viola o contrato atual" in atualizadas[0]["motivo_suspeita"]
+    assert atualizadas[1]["status"] == "ok"
+    assert "1 regra(s) violam o contrato atual" in capsys.readouterr().out
+
+
 def test_reclassificar_preserva_regra_genuina_como_ok(tmp_path, monkeypatch):
     propostas, pasta_chunks = _preparar_pastas(tmp_path, monkeypatch)
 

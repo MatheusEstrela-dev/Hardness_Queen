@@ -17,8 +17,8 @@ import re
 
 from pydantic import ValidationError
 
-from ingestao.contrato import Chunk, Regra, RegraExtraida
-from ingestao.identidade import regra_id
+from ingestao.contrato import MAX_CHARS_FONTE_TRECHO, Chunk, Regra, RegraExtraida
+from ingestao.identidade import regra_id_de
 from ingestao.validacao import classificar, normalizar
 
 # entidade_tipo/entidade_nome para toda regra lida de tabela: uma tabela
@@ -119,15 +119,19 @@ def _celulas(linha: str) -> list[str]:
     return [_limpar_celula(c) for c in interior.split("|")]
 
 
-def _tabelas(texto: str) -> list[tuple[list[str], list[tuple[str, list[str]]]]]:
+def _tabelas(texto: str) -> list[tuple[str, list[str], list[tuple[str, list[str]]]]]:
     """Localiza tabelas markdown no texto do chunk.
 
-    Devolve, por tabela: (cabecalho, [(linha_bruta, celulas), ...]) -- a
-    linha bruta e preservada porque fonte_trecho precisa ser a linha verbatim,
-    nao uma reconstrucao a partir das celulas limpas.
+    Devolve, por tabela: (titulo, cabecalho, [(linha_bruta, celulas), ...]).
+    A linha bruta e preservada porque fonte_trecho precisa ser a linha
+    verbatim, nao uma reconstrucao a partir das celulas limpas. O titulo e a
+    ultima linha nao vazia antes do cabecalho ("" se nao houver): no PlanCon
+    e ele que diz se a tabela e de deslizamento ou de inundacao, informacao
+    que nenhuma celula da tabela carrega.
     """
     linhas = texto.splitlines()
-    tabelas: list[tuple[list[str], list[tuple[str, list[str]]]]] = []
+    tabelas: list[tuple[str, list[str], list[tuple[str, list[str]]]]] = []
+    titulo = ""
     i = 0
     n = len(linhas)
     while i < n:
@@ -139,10 +143,145 @@ def _tabelas(texto: str) -> list[tuple[list[str], list[tuple[str, list[str]]]]]:
             while i < n and "|" in linhas[i]:
                 linhas_dados.append((linhas[i], _celulas(linhas[i])))
                 i += 1
-            tabelas.append((cabecalho, linhas_dados))
+            tabelas.append((titulo, cabecalho, linhas_dados))
+            titulo = ""
         else:
+            if linha.strip():
+                titulo = _limpar_celula(linha)
             i += 1
     return tabelas
+
+
+# --- Tabelas de nivel de Plano de Contingencia municipal -------------------
+#
+# Forma observada no PlanCon de Ipatinga (2025/2026, p. 12): uma linha por
+# janela de tempo, uma coluna por nivel, um valor em mm por celula.
+#
+#   **TABELA DE NIVEIS DE ALERTA PARA RISCO GEOLOGICO (DESLIZAMENTOS)**
+#   |TEMPO|NIVEL 1(Observacao)|NIVEL 2(Atencao)|NIVEL 3(Critico)|NIVEL 4 (Emergencial)|
+#   |1 hora|5 mm|25 mm|35 mm|50 mm|
+#
+# Tres coisas que as tabelas do estado nao tem, e que mudam a leitura:
+# - o nivel e do PLANO, nao do estado. Os sinonimos de _ROTULOS acima
+#   ("critico" -> roxo) valem para o POP; aplicados aqui dariam roxo ao
+#   "Critico" que o proprio plano chama de Laranja. Esta forma nao passa por
+#   _ROTULOS: vira escala nivel_municipal, ordinal, com o nome original.
+# - o limiar e do MUNICIPIO do plano, nao de Minas Gerais.
+# - o processo (deslizamento ou inundacao) esta no titulo, fora da tabela.
+
+_CABECALHO_JANELA = {"tempo", "janela", "periodo", "duracao"}
+_ORDINAIS = ("n1", "n2", "n3", "n4", "n5")
+_CELULA_NIVEL = re.compile(r"^\s*n[íi]vel\s*(\d)\s*\(\s*(.+?)\s*\)\s*$", re.IGNORECASE)
+_CELULA_JANELA = re.compile(rf"^\s*({_NUM})\s*(minutos?|min|horas?|h)\s*$", re.IGNORECASE)
+_CELULA_MM = re.compile(rf"^\s*({_NUM})\s*mm\s*$", re.IGNORECASE)
+
+# Processo do titulo -> dominio. Deslizamento e risco geologico; inundacao e
+# alagamento chegam pelo rio e pela drenagem, hidrologia. Titulo que nao nomeia
+# nenhum dos dois, ou nomeia os dois, nao vira regra: o dominio e parte da
+# identidade da regra e nao se adivinha.
+_PROCESSO_PARA_DOMINIO: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("deslizamento", "risco geologico", "movimento de massa", "movimentos de massa"), "geologia"),
+    (("inundacao", "alagamento", "enchente", "enxurrada"), "hidrologia"),
+)
+
+# Nome de arquivo do acervo de PlanCons: MUNICIPIO_AAAA-MM-DD.pdf (os 721
+# arquivos do backup seguem essa forma). E daqui que sai o municipio: a
+# tabela nao o repete, e o rodape que o repete nao sobrevive a toda
+# conversao para markdown.
+_ARQUIVO_PLANCON = re.compile(r"^([A-Za-z_]+?)_\d{4}-\d{2}-\d{2}\.pdf$")
+
+
+def _municipio_do_documento(doc: str) -> str | None:
+    m = _ARQUIVO_PLANCON.match(doc)
+    return " ".join(m.group(1).lower().split("_")) if m else None
+
+
+def _dominio_do_titulo(titulo: str) -> str | None:
+    texto = normalizar(titulo)
+    dominios = {dominio for termos, dominio in _PROCESSO_PARA_DOMINIO if any(t in texto for t in termos)}
+    return dominios.pop() if len(dominios) == 1 else None
+
+
+def _niveis_do_cabecalho(cabecalho: list[str]) -> list[str] | None:
+    """Rotulos dos niveis, na ordem, se o cabecalho for janela x Nivel 1..k."""
+    if len(cabecalho) < 3 or normalizar(cabecalho[0]) not in _CABECALHO_JANELA:
+        return None
+    rotulos = []
+    for esperado, celula in enumerate(cabecalho[1:], 1):
+        m = _CELULA_NIVEL.match(celula)
+        if m is None or int(m.group(1)) != esperado or esperado > len(_ORDINAIS):
+            return None
+        rotulos.append(m.group(2))
+    return rotulos
+
+
+
+def _janela_da_celula(celula: str) -> float | None:
+    m = _CELULA_JANELA.match(celula)
+    if m is None:
+        return None
+    quantidade = _num(m.group(1))
+    return quantidade / 60 if m.group(2).lower().startswith("min") else quantidade
+
+
+def _regras_de_niveis_municipais(
+    titulo: str,
+    cabecalho: list[str],
+    linhas_dados: list[tuple[str, list[str]]],
+    chunk: Chunk,
+) -> tuple[list[RegraExtraida], int] | None:
+    """Le uma tabela de niveis de PlanCon. None se a tabela nao tiver essa forma.
+
+    Tudo ou nada por linha: se uma celula nao for "N mm", a linha inteira e
+    ignorada. Aproveitar as celulas boas deslocaria valores para o nivel
+    errado -- o erro que ninguem ve na revisao, porque o numero existe.
+    """
+    rotulos = _niveis_do_cabecalho(cabecalho)
+    if rotulos is None:
+        return None
+
+    dominio = _dominio_do_titulo(titulo)
+    municipio = _municipio_do_documento(chunk.doc)
+    if dominio is None or municipio is None:
+        return [], len(linhas_dados)
+
+    regras: list[RegraExtraida] = []
+    ignoradas = 0
+    for linha_bruta, celulas in linhas_dados:
+        janela = _janela_da_celula(celulas[0]) if celulas else None
+        valores = [_CELULA_MM.match(c) for c in celulas[1:]]
+        if len(celulas) != len(cabecalho) or janela is None or not all(valores):
+            ignoradas += 1
+            continue
+        numeros = [_num(m.group(1)) for m in valores]
+        if numeros != sorted(numeros):
+            # Nivel mais grave com limiar menor que o anterior: ou o documento
+            # errou, ou a leitura desalinhou colunas. Nos dois casos, nao se
+            # emite regra -- a linha fica contada como ignorada.
+            ignoradas += 1
+            continue
+        for ordinal, rotulo, valor in zip(_ORDINAIS, rotulos, numeros):
+            regras.append(
+                RegraExtraida(
+                    dominio=dominio,
+                    entidade_tipo="municipio",
+                    entidade_nome=municipio,
+                    grandeza="chuva_acumulada",
+                    janela_horas=janela,
+                    unidade="mm",
+                    escala="nivel_municipal",
+                    nivel=ordinal,
+                    nivel_rotulo=rotulo,
+                    sentido="acima",
+                    # "25 mm" na coluna do Nivel 2 e o valor que aciona o nivel:
+                    # a partir dele. O teto de cada nivel e o piso do seguinte,
+                    # e quem resolve isso e quem consome a escala inteira.
+                    valor_min=valor,
+                    valor_max=None,
+                    fonte_trecho=linha_bruta.strip()[:MAX_CHARS_FONTE_TRECHO],
+                )
+            )
+    return regras, ignoradas
 
 
 _MAIOR_CHAVE_DE_ROTULO = max(len(chave.split()) for chave in _ROTULOS)
@@ -278,11 +417,36 @@ def _janela_horas(grandeza: str, celula_valor: str, texto_cabecalho: str) -> int
     return None
 
 
+def _para_regra(extraida: RegraExtraida, chunk: Chunk) -> Regra:
+    # Mesmo caminho unico de validacao que o modelo usa (task-19-brief,
+    # "as tres defesas, em ordem"): uma origem nao pode escapar das
+    # defesas so por ser lida de tabela.
+    status, motivo = classificar(extraida, chunk.texto)
+    return Regra(
+        **extraida.model_dump(),
+        regra_id=regra_id_de(chunk.chunk_id, extraida),
+        chunk_id=chunk.chunk_id,
+        fonte_doc=chunk.doc,
+        fonte_pagina=chunk.pagina,
+        fonte_secao=chunk.secao,
+        origem="tabela",
+        status=status,
+        motivo_suspeita=motivo,
+    )
+
+
 def extrair_de_tabelas(chunk: Chunk) -> tuple[list[Regra], int]:
     regras: list[Regra] = []
     ignoradas = 0
 
-    for cabecalho, linhas_dados in _tabelas(chunk.texto):
+    for titulo, cabecalho, linhas_dados in _tabelas(chunk.texto):
+        municipais = _regras_de_niveis_municipais(titulo, cabecalho, linhas_dados, chunk)
+        if municipais is not None:
+            extraidas, ignoradas_aqui = municipais
+            ignoradas += ignoradas_aqui
+            regras.extend(_para_regra(extraida, chunk) for extraida in extraidas)
+            continue
+
         texto_cabecalho = " ".join(cabecalho)
         for linha_bruta, celulas in linhas_dados:
             if len(celulas) != len(cabecalho):
@@ -337,32 +501,6 @@ def extrair_de_tabelas(chunk: Chunk) -> tuple[list[Regra], int]:
                 ignoradas += 1
                 continue
 
-            # Mesmo caminho unico de validacao que o modelo usa (task-19-brief,
-            # "as tres defesas, em ordem"): uma origem nao pode escapar das
-            # defesas so por ser lida de tabela.
-            status, motivo = classificar(extraida, chunk.texto)
-
-            regras.append(
-                Regra(
-                    **extraida.model_dump(),
-                    regra_id=regra_id(
-                        chunk.chunk_id,
-                        extraida.entidade_tipo,
-                        extraida.entidade_nome,
-                        extraida.grandeza,
-                        extraida.escala,
-                        extraida.nivel,
-                        extraida.valor_min,
-                        extraida.valor_max,
-                    ),
-                    chunk_id=chunk.chunk_id,
-                    fonte_doc=chunk.doc,
-                    fonte_pagina=chunk.pagina,
-                    fonte_secao=chunk.secao,
-                    origem="tabela",
-                    status=status,
-                    motivo_suspeita=motivo,
-                )
-            )
+            regras.append(_para_regra(extraida, chunk))
 
     return regras, ignoradas

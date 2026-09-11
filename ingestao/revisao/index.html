@@ -75,8 +75,8 @@ function mostrar() {
     ? "Uma ou mais fontes deste grupo foram marcadas como suspeitas -- confira os trechos acima."
     : "";
 
-  const ordem = ["faixa", "unidade", "escala", "nivel", "janela_horas",
-                 "dominio", "grandeza", "entidade_nome"];
+  const ordem = ["faixa", "unidade", "sentido", "escala", "nivel", "nivel_rotulo",
+                 "janela_horas", "dominio", "grandeza", "entidade_tipo", "entidade_nome"];
   const campos = document.getElementById("campos");
   campos.textContent = "";
   for (const campo of ordem) {

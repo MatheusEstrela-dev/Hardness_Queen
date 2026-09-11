@@ -12,6 +12,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from pydantic import ValidationError
+
 from ingestao.contrato import RegraExtraida
 from ingestao.validacao import classificar
 
@@ -118,7 +120,9 @@ def regras() -> None:
 
 
 def _campos_de_regra_extraida(registro: dict) -> dict:
-    return {campo: registro[campo] for campo in RegraExtraida.model_fields}
+    # Proposta gravada antes de um campo novo do contrato (sentido,
+    # nivel_rotulo) nao o tem: fica de fora e o padrao do contrato vale.
+    return {campo: registro[campo] for campo in RegraExtraida.model_fields if campo in registro}
 
 
 def _carregar_textos_de_chunks() -> dict[str, str]:
@@ -147,6 +151,7 @@ def reclassificar() -> None:
     textos_por_chunk = _carregar_textos_de_chunks()
 
     nao_verificaveis = 0
+    contrato_violado = 0
     for proposta in propostas:
         texto_chunk = textos_por_chunk.get(proposta["chunk_id"])
         if texto_chunk is None:
@@ -158,7 +163,17 @@ def reclassificar() -> None:
             nao_verificaveis += 1
             continue
 
-        regra_extraida = RegraExtraida(**_campos_de_regra_extraida(proposta))
+        try:
+            regra_extraida = RegraExtraida(**_campos_de_regra_extraida(proposta))
+        except ValidationError as erro:
+            # Proposta gravada sob um contrato mais frouxo e que o atual recusa.
+            # Caso real: 7 regras com janela_horas=0, todas inventadas a partir
+            # de trechos sem limiar ("somou mais de 50 obitos"). Nao some da
+            # fila nem derruba o lote: fica suspeita, com o motivo.
+            proposta["status"] = "suspeito"
+            proposta["motivo_suspeita"] = f"viola o contrato atual: {erro.errors()[0]['msg']}"
+            contrato_violado += 1
+            continue
         status, motivo = classificar(regra_extraida, texto_chunk)
         proposta["status"] = status
         proposta["motivo_suspeita"] = motivo
@@ -176,6 +191,8 @@ def reclassificar() -> None:
     print("depois:")
     for status_nome, quantidade in sorted(contagem_depois.items()):
         print(f"  status {status_nome:10} {quantidade}")
+    if contrato_violado:
+        print(f"\n{contrato_violado} regra(s) violam o contrato atual e foram marcadas suspeito")
     if nao_verificaveis:
         print(f"\n{nao_verificaveis} regra(s) sem chunk de origem, marcada(s) suspeito por nao poder reverificar")
 

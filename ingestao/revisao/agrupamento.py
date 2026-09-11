@@ -8,18 +8,24 @@ ocorrencia -- hoje a fila mostra as tres como itens separados e o revisor
 decide o mesmo limiar tres vezes.
 """
 
-# O que torna duas regras "o mesmo limiar": concordancia nesses sete campos.
-# entidade_tipo/entidade_nome/dominio ficam de fora de proposito -- nos dados
-# reais do acervo (ver data/regras_propostas.jsonl) esses tres campos sao
-# constantes dentro de cada grupo com mais de uma fonte, entao nao mudam o
-# resultado do agrupamento; inclui-los so estreitaria o agrupamento sem
-# ganho observado, e o pedido original de agrupamento e explicito sobre
-# quais sete campos definem o limiar.
+# O que torna duas regras "o mesmo limiar": concordancia nestes campos.
+#
+# entidade_tipo/entidade_nome/dominio ficaram de fora enquanto o acervo era
+# so de normas estaduais: eram constantes em todo grupo, e inclui-los nao
+# mudava nada. Deixaram de ser com os Planos de Contingencia municipais --
+# o "Nivel 1 a partir de 80 mm em 96h" de Ipatinga e o de outro municipio
+# cairiam no mesmo grupo, e UMA decisao do revisor valeria para os dois.
+# Pelo mesmo motivo entra o sentido: um limiar "acima de X" e um "abaixo de X"
+# nao sao o mesmo limiar mesmo com o mesmo numero.
 CAMPOS_CHAVE_LIMIAR = (
+    "entidade_tipo",
+    "entidade_nome",
+    "dominio",
     "escala",
     "nivel",
     "grandeza",
     "unidade",
+    "sentido",
     "valor_min",
     "valor_max",
     "janela_horas",
@@ -38,8 +44,18 @@ CAMPOS_FONTE = (
 )
 
 
+# Campos que entraram no contrato depois que ja havia propostas gravadas. Uma
+# proposta antiga nao os tem, e o valor que ela teria e o padrao do contrato:
+# todo limiar anterior a eles era "acima de" (chuva, cota, vazao).
+PADROES_DE_CAMPOS_NOVOS = {"sentido": "acima", "nivel_rotulo": None}
+
+
+def _campo(regra: dict, campo: str):
+    return regra[campo] if campo in regra else PADROES_DE_CAMPOS_NOVOS[campo]
+
+
 def chave_limiar(regra: dict) -> tuple:
-    return tuple(regra[campo] for campo in CAMPOS_CHAVE_LIMIAR)
+    return tuple(_campo(regra, campo) for campo in CAMPOS_CHAVE_LIMIAR)
 
 
 def agrupar_por_limiar(regras: list[dict], campos_fonte: tuple[str, ...] = CAMPOS_FONTE) -> list[dict]:
@@ -67,10 +83,9 @@ def agrupar_por_limiar(regras: list[dict], campos_fonte: tuple[str, ...] = CAMPO
         chave = chave_limiar(regra)
         grupo = grupos.get(chave)
         if grupo is None:
-            grupo = {campo: regra[campo] for campo in CAMPOS_CHAVE_LIMIAR}
-            grupo["dominio"] = regra["dominio"]
-            grupo["entidade_tipo"] = regra["entidade_tipo"]
-            grupo["entidade_nome"] = regra["entidade_nome"]
+            grupo = {campo: _campo(regra, campo) for campo in CAMPOS_CHAVE_LIMIAR}
+            # Descritivo, fora da chave: o nome que o plano da ao nivel.
+            grupo["nivel_rotulo"] = _campo(regra, "nivel_rotulo")
             grupo["fontes"] = []
             grupos[chave] = grupo
         grupo["fontes"].append({campo: regra.get(campo) for campo in campos_fonte})

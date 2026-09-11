@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Callable
 
 from ingestao.contrato import Chunk, Extracao, Regra
-from ingestao.identidade import regra_id
+from ingestao.identidade import regra_id_de
 from ingestao.persistencia import anexar_jsonl, ids_ja_vistos
 from ingestao.tabelas import extrair_de_tabelas
 from ingestao.validacao import classificar, pode_conter_limiar, suspeito_de_omissao
@@ -36,8 +36,15 @@ SEMENTE = 42
 # recuperavel, nao um lote inteiro abortado.
 MAX_TOKENS_DE_SAIDA = 4096
 
+# As duas ultimas linhas vieram da amostra de Ipatinga (PlanCon 2025/2026),
+# onde o modelo, sem elas, leu a tabela de UMIDADE DO AR como taxa de chuva em
+# mm, atribuiu ao estado inteiro um limiar do municipio e converteu os niveis
+# do plano (Atencao/Alerta/Emergencia) para as cores do POP estadual. Todos os
+# campos errados, com cara de regra valida -- a gramatica obriga a resposta a
+# caber no vocabulario, entao o prompt precisa dizer quando NAO responder.
 INSTRUCAO = """Voce extrai limiares tecnicos de laudos da Defesa Civil.
 
+Documento: {doc}
 Trecho ({secao}):
 {texto}
 
@@ -49,11 +56,13 @@ Niveis por cor: verde, amarelo, laranja, vermelho, roxo (menos para mais grave).
 Limiar valido para todo o estado usa entidade_tipo="estado" e
 entidade_nome="minas gerais", em vez de inventar entidade que o texto nao nomeia.
 escala="alerta_cor" vai com os niveis por cor; escala="intensidade" vai com fraca, moderada, forte, muito_forte, extremo; taxa em mm/h e grandeza="taxa_precipitacao", nao chuva_acumulada.
+Plano municipal: entidade_tipo="municipio"; seus niveis (Nivel 1, 2...) usam escala="nivel_municipal", nivel="n1"... e nivel_rotulo como escrito, NUNCA cor.
+Umidade e outras grandezas fora do vocabulario: nao extraia.
 """
 
 
 def montar_prompt(chunk: Chunk) -> str:
-    return INSTRUCAO.format(secao=chunk.secao or "nao identificada", texto=chunk.texto)
+    return INSTRUCAO.format(doc=chunk.doc, secao=chunk.secao or "nao identificada", texto=chunk.texto)
 
 
 def extrair_do_chunk(chunk: Chunk, gerar: Callable[[str], str]) -> list[Regra]:
@@ -66,16 +75,7 @@ def extrair_do_chunk(chunk: Chunk, gerar: Callable[[str], str]) -> list[Regra]:
         regras.append(
             Regra(
                 **extraida.model_dump(),
-                regra_id=regra_id(
-                    chunk.chunk_id,
-                    extraida.entidade_tipo,
-                    extraida.entidade_nome,
-                    extraida.grandeza,
-                    extraida.escala,
-                    extraida.nivel,
-                    extraida.valor_min,
-                    extraida.valor_max,
-                ),
+                regra_id=regra_id_de(chunk.chunk_id, extraida),
                 chunk_id=chunk.chunk_id,
                 fonte_doc=chunk.doc,
                 fonte_pagina=chunk.pagina,

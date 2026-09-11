@@ -16,34 +16,68 @@ Grandeza = Literal[
 ]
 Unidade = Literal["mm", "m", "m3/s", "km/h", "kg/m2", "dBZ", "celsius", "mm/h"]
 
-# Duas escalas de classificacao coexistem no acervo, e nao sao a mesma coisa:
+# Tres escalas de classificacao coexistem no acervo, e nao sao a mesma coisa:
 #
-# - alerta_cor: escala normativa de MG (POP_ENVIO_DE_ALERTA_HIDROMETEOROLOGICO
-#   N 6.1.3/2025, secao 6.2), cinco niveis nomeados por cor sobre chuva
-#   acumulada (mm). Limiar vindo de outra fonte (ex.: INMET, que usa perigo
-#   potencial / perigo / grande perigo) e mapeado para a cor equivalente na
-#   extracao; fonte_trecho preserva o texto original.
+# - alerta_cor: escala normativa ESTADUAL de MG (POP_ENVIO_DE_ALERTA_
+#   HIDROMETEOROLOGICO N 6.1.3/2025, secao 6.2), cinco niveis nomeados por cor
+#   sobre chuva acumulada (mm). Limiar de outro orgao estadual ou federal (ex.:
+#   INMET, que usa perigo potencial / perigo / grande perigo) e mapeado para a
+#   cor equivalente na extracao; fonte_trecho preserva o texto original.
 # - intensidade: classifica a taxa de precipitacao (mm/h) em si -- quao forte
 #   esta chovendo --, nao a resposta operacional a esse tanto de chuva. Vem de
 #   tabelas como a de PROTOCOLO_ALERTAS_METEORO.docx (Fraca/Moderada/Forte/
 #   Muito Forte/Extremo).
+# - nivel_municipal: a escala propria de um Plano de Contingencia municipal.
+#   NUNCA e convertida para cor. Medido em Ipatinga: o plano chama o Nivel 2 de
+#   "Atencao (Amarelo)" e o aciona com 35 mm em 24h para deslizamento; o
+#   "Amarelo" do POP estadual comeca em 60 mm. Mesma cor, limiar e resposta
+#   diferentes -- converter faria um alerta municipal parecer estadual. E os
+#   planos nem concordam entre si no vocabulario (Ipatinga: Observacao/Atencao/
+#   Critico/Emergencial; Merces e Muzambinho: Atencao/Alerta/Emergencia), por
+#   isso o nivel e ORDINAL (n1 menos grave) e o nome vai em nivel_rotulo, como
+#   o documento escreve.
 #
-# As duas escalas sao relacionadas -- o POP deriva as cores dos patamares de
+# As escalas sao relacionadas -- o POP deriva as cores dos patamares de
 # acumulado -- mas misturar os niveis de uma na outra (ex.: rotular "Moderada"
 # como uma cor) reproduziria o erro ja corrigido neste projeto em que um
 # limiar estadual de chuva foi rotulado entidade_tipo=tipo_solo por falta de
 # opcao melhor no vocabulario.
-Escala = Literal["alerta_cor", "intensidade"]
+Escala = Literal["alerta_cor", "intensidade", "nivel_municipal"]
 
 NIVEIS_ALERTA_COR: frozenset[str] = frozenset({"verde", "amarelo", "laranja", "vermelho", "roxo"})
 NIVEIS_INTENSIDADE: frozenset[str] = frozenset({"fraca", "moderada", "forte", "muito_forte", "extremo"})
+NIVEIS_MUNICIPAIS: frozenset[str] = frozenset({"n1", "n2", "n3", "n4", "n5"})
 
 NIVEIS_POR_ESCALA: dict[str, frozenset[str]] = {
     "alerta_cor": NIVEIS_ALERTA_COR,
     "intensidade": NIVEIS_INTENSIDADE,
+    "nivel_municipal": NIVEIS_MUNICIPAIS,
 }
 
-Nivel = Literal["verde", "amarelo", "laranja", "vermelho", "roxo", "fraca", "moderada", "forte", "muito_forte", "extremo"]
+Nivel = Literal[
+    "verde", "amarelo", "laranja", "vermelho", "roxo",
+    "fraca", "moderada", "forte", "muito_forte", "extremo",
+    "n1", "n2", "n3", "n4", "n5",
+]
+
+# Para que lado o limiar aponta. "acima": o nivel vale a partir do valor, mais
+# e pior -- chuva, cota, vazao, vento. "abaixo": menos e pior. O caso real ja no
+# vocabulario e temperatura_topo (topo de nuvem mais frio = conveccao mais
+# forte); os que vem pela frente sao o fator de seguranca de barragem e a
+# altura de inundacao da legenda SGB. O gerador de dataset e o motor de alerta
+# escolhem o nivel mais grave pelo sentido: sem este campo, um limiar "abaixo"
+# seria lido ao contrario e o nivel sairia invertido.
+Sentido = Literal["acima", "abaixo"]
+
+# Grandezas em que "menos e pior" nao faz sentido fisico. Chuva abaixo de um
+# valor nunca agrava risco hidrometeorologico; aceitar sentido="abaixo" aqui
+# so poderia vir de erro de extracao.
+GRANDEZAS_SO_ACIMA: frozenset[str] = frozenset({"chuva_acumulada", "taxa_precipitacao", "vazao", "cota"})
+
+# Nome do nivel como o documento escreve ("Observacao", "Critico"). Curto por
+# ser um rotulo, e limitado no schema porque o outlines monta a gramatica a
+# partir dele: sem teto o modelo poderia gastar o orcamento de tokens aqui.
+MAX_CHARS_NIVEL_ROTULO = 40
 Status = Literal["ok", "suspeito"]
 Veredito = Literal["aprovado", "rejeitado", "corrigido"]
 
@@ -100,10 +134,15 @@ class RegraExtraida(BaseModel):
     entidade_tipo: EntidadeTipo
     entidade_nome: str
     grandeza: Grandeza
-    janela_horas: int | None
+    # Fracionario de proposito: o PlanCon de Ipatinga tem limiar em 15 minutos
+    # (0.25). Inteiro, essa linha da tabela nao tinha representacao e o modelo
+    # era forcado a escrever 0 ou 1.
+    janela_horas: float | None
     unidade: Unidade
     escala: Escala
     nivel: Nivel
+    nivel_rotulo: str | None = Field(default=None, max_length=MAX_CHARS_NIVEL_ROTULO)
+    sentido: Sentido = "acima"
     valor_min: float | None
     valor_max: float | None
     fonte_trecho: str = Field(min_length=MIN_CHARS_FONTE_TRECHO, max_length=MAX_CHARS_FONTE_TRECHO)
@@ -112,6 +151,26 @@ class RegraExtraida(BaseModel):
     def _exige_pelo_menos_um_extremo(self) -> "RegraExtraida":
         if self.valor_min is None and self.valor_max is None:
             raise ValueError("regra precisa de valor_min ou valor_max preenchido")
+        return self
+
+    @model_validator(mode="after")
+    def _janela_positiva(self) -> "RegraExtraida":
+        if self.janela_horas is not None and self.janela_horas <= 0:
+            raise ValueError(f"janela_horas precisa ser positiva, veio {self.janela_horas}")
+        return self
+
+    @model_validator(mode="after")
+    def _escala_municipal_carrega_o_rotulo(self) -> "RegraExtraida":
+        # n1..n5 sozinhos nao dizem nada a um revisor nem a quem le o alerta;
+        # o nome que o plano da ao nivel e o que liga a regra ao documento.
+        if self.escala == "nivel_municipal" and not (self.nivel_rotulo or "").strip():
+            raise ValueError("escala nivel_municipal exige nivel_rotulo com o nome do nivel no documento")
+        return self
+
+    @model_validator(mode="after")
+    def _sentido_coerente_com_grandeza(self) -> "RegraExtraida":
+        if self.sentido == "abaixo" and self.grandeza in GRANDEZAS_SO_ACIMA:
+            raise ValueError(f"{self.grandeza} com sentido 'abaixo' nao descreve agravamento de risco")
         return self
 
     @model_validator(mode="after")

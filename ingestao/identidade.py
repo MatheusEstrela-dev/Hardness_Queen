@@ -19,5 +19,26 @@ def regra_id(
     nivel: str,
     valor_min: float | None,
     valor_max: float | None,
+    janela_horas: float | None = None,
+    dominio: str | None = None,
 ) -> str:
-    return _hash(chunk_id, entidade_tipo, entidade_nome, grandeza, escala, nivel, valor_min, valor_max)
+    # janela e dominio entraram depois de uma colisao real: na tabela do
+    # PlanCon de Ipatinga, "deslizamento, 96h, Nivel 1 = 80 mm" e "inundacao,
+    # 24h, Nivel 1 = 80 mm" saem do mesmo chunk com os mesmos oito campos
+    # anteriores -- mesmo id, e a segunda regra sobrescreveria a primeira.
+    return _hash(
+        chunk_id, entidade_tipo, entidade_nome, grandeza, escala, nivel,
+        valor_min, valor_max, janela_horas, dominio,
+    )
+
+
+def regra_id_de(chunk_id: str, regra) -> str:
+    """O id de uma RegraExtraida -- o unico jeito de montar o id a partir dela.
+
+    Os dois produtores de regra (parser de tabela e modelo) chamam isto, para
+    que nunca divirjam sobre quais campos definem a identidade.
+    """
+    return regra_id(
+        chunk_id, regra.entidade_tipo, regra.entidade_nome, regra.grandeza, regra.escala,
+        regra.nivel, regra.valor_min, regra.valor_max, regra.janela_horas, regra.dominio,
+    )

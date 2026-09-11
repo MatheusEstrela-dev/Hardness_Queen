@@ -147,7 +147,7 @@ def _motivo_de_implausibilidade(
 GRANDEZAS_DE_TAXA = {"taxa_precipitacao"}
 
 
-def janela_coerente_com_grandeza(grandeza: str, janela_horas: int | None) -> bool:
+def janela_coerente_com_grandeza(grandeza: str, janela_horas: float | None) -> bool:
     """Uma taxa nao tem janela maior que 1h: o "por hora" ja esta na unidade.
 
     Achado real: o modelo leu "60 mm em 24 horas" como taxa_precipitacao de
