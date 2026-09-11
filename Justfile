@@ -30,13 +30,19 @@ RESET  := '\033[0m'
 # Python do projeto. NUNCA o global: o stack de treino esta pregado neste venv.
 python := "venv/Scripts/python.exe"
 
-# Artefatos da esteira
-chunks_dir := "data/chunks"
-propostas  := "data/regras_propostas.jsonl"
-aprovadas  := "data/regras_aprovadas.jsonl"
-decisoes   := "data/decisoes.jsonl"
-omissoes   := "data/possiveis_omissoes.jsonl"
-manifesto  := "data/manifesto.jsonl"
+# Area de trabalho: cada equipe tem docs/<area>/ e data/<area>/. Troque com
+#   just area=Geologia extrair-texto
+# Os scripts leem a mesma escolha pela variavel exportada (ingestao/caminhos.py).
+area := env_var_or_default("HARDNESS_AREA", "Meteorologia")
+export HARDNESS_AREA := area
+
+# Artefatos da esteira, na area escolhida
+chunks_dir := "data/" + area + "/chunks"
+propostas  := "data/" + area + "/regras_propostas.jsonl"
+aprovadas  := "data/" + area + "/regras_aprovadas.jsonl"
+decisoes   := "data/" + area + "/decisoes.jsonl"
+omissoes   := "data/" + area + "/possiveis_omissoes.jsonl"
+manifesto  := "data/" + area + "/manifesto.jsonl"
 adaptador  := "models/lora_treinado"
 
 # Receita padrao
@@ -54,6 +60,7 @@ adaptador  := "models/lora_treinado"
     printf "{{BOLD}}{{CYAN}}+--------------------------------------------------------------------+{{RESET}}\n"
     printf "{{BOLD}}{{CYAN}}|   HARDNESS IA - Assistente Tecnico da Defesa Civil de MG           |{{RESET}}\n"
     printf "{{BOLD}}{{CYAN}}+--------------------------------------------------------------------+{{RESET}}\n"
+    printf "  area atual: {{BOLD}}{{area}}{{RESET}}  {{GRAY}}(docs/{{area}}/ e data/{{area}}/ -- troque com: just area=Geologia <comando>){{RESET}}\n"
     echo ""
     printf "{{BOLD}}AMBIENTE (checar antes de rodar qualquer coisa pesada):{{RESET}}\n"
     printf "  {{CYAN}}%-20s{{RESET}} %s\n" "doctor" "diagnostico completo: GPU, versoes, artefatos, OCR"
@@ -62,8 +69,8 @@ adaptador  := "models/lora_treinado"
     printf "  {{CYAN}}%-20s{{RESET}} %s\n" "tesseract" "o OCR esta disponivel? (laudo digitalizado depende dele)"
     echo ""
     printf "{{BOLD}}INGESTAO - laudos viram limiares revisados:{{RESET}}\n"
-    printf "  {{GREEN}}%-20s{{RESET}} %s\n" "docs-status" "quantos PDF/DOCX esperam em docs/"
-    printf "  {{GREEN}}%-20s{{RESET}} %s\n" "extrair-texto" "etapa 03: docs/ -> chunks com procedencia"
+    printf "  {{GREEN}}%-20s{{RESET}} %s\n" "docs-status" "quantos PDF/DOCX esperam em docs/<area>/"
+    printf "  {{GREEN}}%-20s{{RESET}} %s\n" "extrair-texto" "etapa 03: docs/<area>/ -> chunks com procedencia"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "extrair-regras" "etapa 04: chunks -> regras (Qwen 7B local, LENTO)"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "importar-ialc PLAN" "etapa 06: IALC -> regras por municipio (sem GPU)"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "revisar" "etapa 05: sobe a fila de revisao em http://127.0.0.1:8100"
@@ -74,7 +81,7 @@ adaptador  := "models/lora_treinado"
     printf "  {{GREEN}}%-20s{{RESET}} %s\n" "manifesto-stats" "estado de cada documento ja processado"
     echo ""
     printf "{{BOLD}}TREINO - limiares viram adaptador LoRA (QLoRA 4-bit na T1000):{{RESET}}\n"
-    printf "  {{YELLOW}}%-20s{{RESET}} %s\n" "dataset" "etapa 01: gera data/dataset_treino.jsonl"
+    printf "  {{YELLOW}}%-20s{{RESET}} %s\n" "dataset" "etapa 01: gera data/<area>/dataset_treino.jsonl"
     printf "  {{YELLOW}}%-20s{{RESET}} %s\n" "dataset-stats" "quantos exemplos existem hoje"
     printf "  {{YELLOW}}%-20s{{RESET}} %s\n" "train" "etapa 02: treina o adaptador (bf16, NAO troque)"
     printf "  {{YELLOW}}%-20s{{RESET}} %s\n" "all" "dataset + train em sequencia"

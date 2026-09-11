@@ -398,8 +398,9 @@ def test_titulo_da_secao_sem_cabecalho_devolve_nulo():
 
 def test_cli_documento_invalido_nao_interrompe_o_lote(tmp_path: Path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
-    pasta_docs = tmp_path / "docs"
-    pasta_docs.mkdir()
+    monkeypatch.setenv("HARDNESS_AREA", "Meteorologia")
+    pasta_docs = tmp_path / "docs" / "Meteorologia"
+    pasta_docs.mkdir(parents=True)
     (pasta_docs / "a_corrompido.pdf").write_bytes(b"nao sou um pdf valido")
     _pdf_com_texto(pasta_docs / "b_valido.pdf")
 
@@ -418,7 +419,7 @@ def test_cli_documento_invalido_nao_interrompe_o_lote(tmp_path: Path, monkeypatc
         registro["doc"]: registro
         for registro in (
             json.loads(linha)
-            for linha in (tmp_path / "data" / "manifesto.jsonl").read_text(encoding="utf-8").splitlines()
+            for linha in (tmp_path / "data" / "Meteorologia" / "manifesto.jsonl").read_text(encoding="utf-8").splitlines()
         )
     }
     assert registros["a_corrompido.pdf"]["estado"] == "erro_extracao"

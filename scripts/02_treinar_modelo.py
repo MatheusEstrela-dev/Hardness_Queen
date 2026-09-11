@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+
 import torch
 import os
 from datasets import load_dataset
@@ -7,7 +10,12 @@ from trl import SFTTrainer, SFTConfig
 
 # 1. Caminhos e Configurações Iniciais
 MODEL_ID = "Qwen/Qwen2.5-3B"
-DATASET_PATH = "data/dataset_treino.jsonl"
+# O dataset e da area em HARDNESS_AREA (padrao Meteorologia), o mesmo lugar
+# onde a etapa 01 o grava -- ver ingestao/caminhos.py.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from ingestao.caminhos import caminhos  # noqa: E402
+
+DATASET_PATH = str(caminhos().dataset)
 OUTPUT_DIR = "models/lora_treinado"
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)

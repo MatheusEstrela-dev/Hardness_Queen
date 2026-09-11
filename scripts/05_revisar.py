@@ -3,13 +3,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from ingestao.caminhos import caminhos
 import uvicorn
 
 from ingestao.revisao.app import criar_app
 
-PROPOSTAS = Path("data/regras_propostas.jsonl")
-DECISOES = Path("data/decisoes.jsonl")
-APROVADAS = Path("data/regras_aprovadas.jsonl")
+AREA = caminhos()
+PROPOSTAS = AREA.propostas
+DECISOES = AREA.decisoes
+APROVADAS = AREA.aprovadas
 
 
 def main() -> int:

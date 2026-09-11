@@ -8,7 +8,7 @@ limiares que de fato valem.
 
 De onde vem o limiar, em ordem de preferencia:
 
-1. data/regras_aprovadas.jsonl -- regras extraidas dos documentos e APROVADAS
+1. data/<area>/regras_aprovadas.jsonl -- regras extraidas dos documentos e APROVADAS
    por um revisor humano. E a fonte correta: o gerador de dataset e o motor de
    alertas passam a beber do mesmo lugar, entao o modelo e sempre treinado com
    o que esta valendo.
@@ -54,10 +54,11 @@ import math
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from ingestao.caminhos import caminhos
 from ingestao.niveis import ESCALA, POR_COR, mais_grave, nivel_de
 
-APROVADAS = Path("data/regras_aprovadas.jsonl")
-SAIDA = Path("data/dataset_treino.jsonl")
+APROVADAS = caminhos().aprovadas
+SAIDA = caminhos().dataset
 
 SYSTEM_PROMPT = (
     "Voce redige alertas hidrometeorologicos para a Defesa Civil de Minas Gerais. "

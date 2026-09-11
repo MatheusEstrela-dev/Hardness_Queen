@@ -3,16 +3,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from ingestao.caminhos import caminhos
 from ingestao.contrato import Chunk
 from ingestao.extrator_regras import criar_gerador_qwen, processar
 from ingestao.persistencia import ler_jsonl
 
-PASTA_CHUNKS = Path("data/chunks")
-PROPOSTAS = Path("data/regras_propostas.jsonl")
-OMISSOES = Path("data/possiveis_omissoes.jsonl")
-FALHAS = Path("data/possiveis_falhas.jsonl")
-SEM_PADRAO = Path("data/possiveis_sem_padrao.jsonl")
-REJEITADAS = Path("data/regras_rejeitadas.jsonl")
+AREA = caminhos()
+PASTA_CHUNKS = AREA.chunks
+PROPOSTAS = AREA.propostas
+OMISSOES = AREA.omissoes
+FALHAS = AREA.falhas
+SEM_PADRAO = AREA.sem_padrao
+REJEITADAS = AREA.rejeitadas
 
 
 def main() -> int:

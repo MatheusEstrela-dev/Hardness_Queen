@@ -20,12 +20,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from ingestao.caminhos import caminhos
 from ingestao.ialc import ler_abas, linhas_do_ialc, regra_do_ialc
 from ingestao.persistencia import anexar_jsonl, ids_ja_vistos
 from ingestao.validacao import normalizar
 
-PROPOSTAS = Path("data/regras_propostas.jsonl")
-PASTA_CHUNKS = Path("data/chunks")
+AREA = caminhos()
+PROPOSTAS = AREA.propostas
+PASTA_CHUNKS = AREA.chunks
 
 
 def main(argv: list[str] | None = None) -> int:

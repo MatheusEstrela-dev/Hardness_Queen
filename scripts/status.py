@@ -14,18 +14,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pydantic import ValidationError
 
+from ingestao.caminhos import caminhos
 from ingestao.contrato import RegraExtraida
 from ingestao.validacao import classificar
 
-PASTA_DOCS = Path("docs")
-PASTA_CHUNKS = Path("data/chunks")
-PROPOSTAS = Path("data/regras_propostas.jsonl")
-APROVADAS = Path("data/regras_aprovadas.jsonl")
-DECISOES = Path("data/decisoes.jsonl")
-OMISSOES = Path("data/possiveis_omissoes.jsonl")
-MANIFESTO = Path("data/manifesto.jsonl")
+AREA = caminhos()
+PASTA_DOCS = AREA.docs
+PASTA_CHUNKS = AREA.chunks
+PROPOSTAS = AREA.propostas
+APROVADAS = AREA.aprovadas
+DECISOES = AREA.decisoes
+OMISSOES = AREA.omissoes
+MANIFESTO = AREA.manifesto
 ADAPTADOR = Path("models/lora_treinado")
-DATASET = Path("data/dataset_treino.jsonl")
+DATASET = AREA.dataset
 PROVENIENCIA = DATASET.with_suffix(".proveniencia.jsonl")
 
 EXTENSOES_SUPORTADAS = {".pdf", ".docx"}

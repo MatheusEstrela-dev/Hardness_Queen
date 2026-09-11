@@ -4,6 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from ingestao.caminhos import caminhos
 from ingestao.extracao_texto import extrair
 from ingestao.persistencia import (
     documento_inalterado,
@@ -12,9 +13,10 @@ from ingestao.persistencia import (
     registrar_documento,
 )
 
-PASTA_DOCS = Path("docs")
-PASTA_CHUNKS = Path("data/chunks")
-MANIFESTO = Path("data/manifesto.jsonl")
+AREA = caminhos()
+PASTA_DOCS = AREA.docs
+PASTA_CHUNKS = AREA.chunks
+MANIFESTO = AREA.manifesto
 
 
 def main() -> int:
