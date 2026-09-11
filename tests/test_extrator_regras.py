@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from ingestao.contrato import Chunk
 from ingestao.extrator_regras import INSTRUCAO, extrair_do_chunk, montar_prompt, processar
 from ingestao.persistencia import ler_jsonl
@@ -101,7 +103,7 @@ def test_prompt_fica_curto_para_chunk_pequeno():
 
 
 def test_extrair_anexa_procedencia_que_nao_veio_do_modelo():
-    regras = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
+    regras, _ = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
 
     assert len(regras) == 1
     assert regras[0].fonte_doc == "laudo.pdf"
@@ -111,13 +113,13 @@ def test_extrair_anexa_procedencia_que_nao_veio_do_modelo():
 
 
 def test_extrair_do_chunk_marca_origem_modelo():
-    regras = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
+    regras, _ = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
 
     assert regras[0].origem == "modelo"
 
 
 def test_regra_boa_recebe_status_ok():
-    regras = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
+    regras, _ = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
 
     assert regras[0].status == "ok"
 
@@ -128,7 +130,7 @@ def test_faixa_fechada_e_extraida_como_uma_unica_regra():
         valor_max=30.0,
         trecho="saturacao ocorre a partir de 100mm em 72h",
     )
-    regras = extrair_do_chunk(_chunk(), _gerador(payload))
+    regras, _ = extrair_do_chunk(_chunk(), _gerador(payload))
 
     assert len(regras) == 1
     assert regras[0].valor_min == 6.0
@@ -136,7 +138,7 @@ def test_faixa_fechada_e_extraida_como_uma_unica_regra():
 
 
 def test_citacao_inventada_recebe_status_suspeito():
-    regras = extrair_do_chunk(_chunk(), _gerador(_uma_regra(trecho="800mm em 24h")))
+    regras, _ = extrair_do_chunk(_chunk(), _gerador(_uma_regra(trecho="800mm em 24h")))
 
     assert regras[0].status == "suspeito"
     assert "trecho" in regras[0].motivo_suspeita
@@ -144,7 +146,7 @@ def test_citacao_inventada_recebe_status_suspeito():
 
 def test_valor_implausivel_recebe_status_suspeito():
     payload = _uma_regra(valor_min=90000.0, trecho="saturacao ocorre a partir de 100mm em 72h")
-    regras = extrair_do_chunk(_chunk(), _gerador(payload))
+    regras, _ = extrair_do_chunk(_chunk(), _gerador(payload))
 
     assert regras[0].status == "suspeito"
 
@@ -155,25 +157,25 @@ def test_faixa_invertida_recebe_status_suspeito():
         valor_max=1.0,
         trecho="saturacao ocorre a partir de 100mm em 72h",
     )
-    regras = extrair_do_chunk(_chunk(), _gerador(payload))
+    regras, _ = extrair_do_chunk(_chunk(), _gerador(payload))
 
     assert regras[0].status == "suspeito"
 
 
 def test_lista_vazia_e_resultado_legitimo():
-    assert extrair_do_chunk(_chunk(), _gerador({"regras": []})) == []
+    assert extrair_do_chunk(_chunk(), _gerador({"regras": []})) == ([], [])
 
 
 def test_regra_id_e_estavel_entre_execucoes():
-    primeira = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
-    segunda = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
+    primeira, _ = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
+    segunda, _ = extrair_do_chunk(_chunk(), _gerador(_uma_regra()))
 
     assert primeira[0].regra_id == segunda[0].regra_id
 
 
 def test_regra_id_muda_quando_extremo_da_faixa_muda():
-    original = extrair_do_chunk(_chunk(), _gerador(_uma_regra(valor_min=100.0)))
-    alterada = extrair_do_chunk(_chunk("c2"), _gerador(_uma_regra(valor_min=90.0)))
+    original, _ = extrair_do_chunk(_chunk(), _gerador(_uma_regra(valor_min=100.0)))
+    alterada, _ = extrair_do_chunk(_chunk("c2"), _gerador(_uma_regra(valor_min=90.0)))
 
     assert original[0].regra_id != alterada[0].regra_id
 
@@ -301,8 +303,8 @@ def _gerador_com_saida_truncada(textos_que_truncam: set[str], payload: dict):
     # RuntimeError deliberado), este gerador reproduz a forma exata do
     # defeito real (task-16): a geracao bate no teto de tokens no meio de
     # uma string, entao o JSON devolvido nao fecha as aspas nem os
-    # colchetes. O erro que processar precisa engolir aqui vem de dentro de
-    # Extracao.model_validate_json (pydantic_core.ValidationError), nao de
+    # colchetes. O erro que processar precisa engolir aqui vem do json.loads
+    # em _validar_uma_a_uma (JSON quebrado e falha do chunk inteiro), nao de
     # uma excecao que o proprio gerador levanta.
     def gerar(prompt: str) -> str:
         for texto in textos_que_truncam:
@@ -501,3 +503,57 @@ def test_chunk_sem_padrao_e_gravado_e_pulado_na_reexecucao(tmp_path: Path):
 
     assert resumo["chunks_pulados"] == 1
     assert resumo["chunks_sem_padrao"] == 0
+
+
+# --- validacao regra por regra -------------------------------------------------
+
+
+def _duas_regras_uma_misturando_escalas() -> dict:
+    """Caso medido no PlanCon de Ipatinga: a gramatica deixa o modelo escrever
+    escala="alerta_cor" com nivel="n1", e o contrato recusa a combinacao."""
+    boa = _uma_regra()["regras"][0]
+    ruim = {**boa, "nivel": "n1", "nivel_rotulo": "Observacao"}
+    return {"regras": [boa, ruim]}
+
+
+def test_regra_invalida_nao_derruba_a_valida_do_mesmo_trecho():
+    regras, recusadas = extrair_do_chunk(_chunk(), _gerador(_duas_regras_uma_misturando_escalas()))
+
+    assert [r.valor_min for r in regras] == [100.0]
+    assert len(recusadas) == 1
+    assert "nao pertence a escala" in recusadas[0]["erro"]
+    assert recusadas[0]["regra_bruta"]["nivel"] == "n1"
+
+
+def test_processar_grava_a_recusada_com_motivo_e_a_valida_como_proposta(tmp_path: Path):
+    saida, falhas = tmp_path / "propostas.jsonl", tmp_path / "falhas.jsonl"
+
+    resumo = processar(
+        [_chunk()], _gerador(_duas_regras_uma_misturando_escalas()),
+        saida, tmp_path / "omissoes.jsonl", falhas, tmp_path / "sem_padrao.jsonl",
+    )
+
+    rejeitadas = [json.loads(l) for l in (tmp_path / "regras_rejeitadas.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert (resumo["regras"], resumo["regras_rejeitadas"], resumo["falhas"]) == (1, 1, 0)
+    assert len(saida.read_text(encoding="utf-8").splitlines()) == 1
+    assert not falhas.exists()
+    assert rejeitadas[0]["chunk_id"] == "c1" and "nao pertence a escala" in rejeitadas[0]["erro"]
+
+
+def test_trecho_so_com_regras_recusadas_fica_visivel_como_omissao(tmp_path: Path):
+    # Nenhuma valida: o chunk tem padrao de limiar e zero regras, entao a rede
+    # de omissao o marca -- alem de cada recusada estar registrada.
+    ruim = {**_uma_regra()["regras"][0], "nivel": "n1", "nivel_rotulo": "Observacao"}
+
+    resumo = processar(
+        [_chunk()], _gerador({"regras": [ruim]}),
+        tmp_path / "propostas.jsonl", tmp_path / "omissoes.jsonl", tmp_path / "falhas.jsonl",
+        tmp_path / "sem_padrao.jsonl",
+    )
+
+    assert (resumo["regras"], resumo["regras_rejeitadas"], resumo["omissoes"]) == (0, 1, 1)
+
+
+def test_json_quebrado_continua_sendo_falha_do_trecho_inteiro():
+    with pytest.raises(ValueError, match="JSON"):
+        extrair_do_chunk(_chunk(), lambda _prompt: '{"regras": [{"dominio": "geo')

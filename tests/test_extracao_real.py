@@ -27,7 +27,7 @@ def test_modelo_real_extrai_os_dois_limiares_do_trecho():
     # que producao de fato executa.
     gerar = criar_gerador_qwen()
     inicio = time.time()
-    regras = extrair_do_chunk(chunk, gerar)
+    regras, _ = extrair_do_chunk(chunk, gerar)
     decorrido = time.time() - inicio
     pico_gb = torch.cuda.max_memory_allocated() / 1024**3
 

@@ -12,6 +12,8 @@ data/decisoes.jsonl
 data/possiveis_omissoes.jsonl
 data/possiveis_falhas.jsonl
 data/possiveis_sem_padrao.jsonl
+# saida do modelo recusada pelo contrato: cita trecho dos documentos
+data/regras_rejeitadas.jsonl
 data/manifesto.jsonl
 # revisao documental assistida: cita texto_exato dos documentos internos
 data/curadoria/

@@ -1,7 +1,10 @@
+import json
 from pathlib import Path
 from typing import Callable
 
-from ingestao.contrato import Chunk, Extracao, Regra
+from pydantic import ValidationError
+
+from ingestao.contrato import Chunk, Extracao, Regra, RegraExtraida
 from ingestao.identidade import regra_id_de
 from ingestao.persistencia import anexar_jsonl, ids_ja_vistos
 from ingestao.tabelas import extrair_de_tabelas
@@ -65,12 +68,41 @@ def montar_prompt(chunk: Chunk) -> str:
     return INSTRUCAO.format(doc=chunk.doc, secao=chunk.secao or "nao identificada", texto=chunk.texto)
 
 
-def extrair_do_chunk(chunk: Chunk, gerar: Callable[[str], str]) -> list[Regra]:
-    bruto = gerar(montar_prompt(chunk))
-    extracao = Extracao.model_validate_json(bruto)
+def _validar_uma_a_uma(bruto: str) -> tuple[list[RegraExtraida], list[dict]]:
+    """As regras que o contrato aceita e, a parte, as que ele recusa com o motivo.
+
+    Antes a lista era validada inteira (Extracao.model_validate_json), e uma
+    regra invalida levava o chunk todo para falhas -- junto com as validas do
+    mesmo trecho. Medido no PlanCon de Ipatinga: 26 chunks perdidos assim,
+    todos pelo mesmo erro (escala="alerta_cor" com nivel="n1"), que a gramatica
+    nao impede porque trata os dois campos separadamente.
+
+    JSON quebrado (saida truncada no teto de tokens) continua sendo falha do
+    chunk inteiro: ai nao ha regra nenhuma para aproveitar.
+    """
+    try:
+        carregado = json.loads(bruto)
+    except json.JSONDecodeError as erro:
+        raise ValueError(f"saida do modelo nao e JSON valido: {erro}") from erro
+    if not isinstance(carregado, dict) or not isinstance(carregado.get("regras"), list):
+        raise ValueError("saida do modelo sem a lista 'regras'")
+
+    aceitas: list[RegraExtraida] = []
+    recusadas: list[dict] = []
+    for bruta in carregado["regras"]:
+        try:
+            aceitas.append(RegraExtraida.model_validate(bruta))
+        except ValidationError as erro:
+            recusadas.append({"erro": erro.errors()[0]["msg"], "regra_bruta": bruta})
+    return aceitas, recusadas
+
+
+def extrair_do_chunk(chunk: Chunk, gerar: Callable[[str], str]) -> tuple[list[Regra], list[dict]]:
+    """Regras validas do chunk, e as que o modelo produziu e o contrato recusou."""
+    aceitas, recusadas = _validar_uma_a_uma(gerar(montar_prompt(chunk)))
 
     regras: list[Regra] = []
-    for extraida in extracao.regras:
+    for extraida in aceitas:
         status, motivo = classificar(extraida, chunk.texto)
         regras.append(
             Regra(
@@ -85,7 +117,7 @@ def extrair_do_chunk(chunk: Chunk, gerar: Callable[[str], str]) -> list[Regra]:
                 motivo_suspeita=motivo,
             )
         )
-    return regras
+    return regras, recusadas
 
 
 def processar(
@@ -95,7 +127,12 @@ def processar(
     omissoes: Path,
     falhas: Path,
     sem_padrao: Path,
+    rejeitadas: Path | None = None,
 ) -> dict:
+    # Regras que o modelo produziu e o contrato recusou, uma por linha, com o
+    # motivo. Por padrao ao lado de falhas: sao da mesma familia -- saida do
+    # modelo que nao virou proposta -- mas por regra, nao por chunk.
+    rejeitadas = rejeitadas or falhas.with_name("regras_rejeitadas.jsonl")
     # falhas e sem_padrao entram no conjunto de "ja feitos" igual a saida e
     # omissoes: um chunk que falhou (OOM, JSON truncado) ou que foi
     # descartado por nao ter padrao de limiar nao e retentado numa
@@ -123,12 +160,14 @@ def processar(
         "omissoes": 0,
         "falhas": 0,
         "linhas_de_tabela_ignoradas": 0,
+        "regras_rejeitadas": 0,
     }
     for chunk in chunks:
         if chunk.chunk_id in ja_feitos:
             resumo["chunks_pulados"] += 1
             continue
 
+        recusadas: list[dict] = []
         try:
             # O parser de tabela roda primeiro em todo chunk: e barato (sem
             # GPU, sem chamada de modelo) e a tabela e a fonte de autoridade
@@ -188,7 +227,7 @@ def processar(
                 resumo["chunks_sem_padrao"] += 1
                 continue
             else:
-                regras = extrair_do_chunk(chunk, gerar)
+                regras, recusadas = extrair_do_chunk(chunk, gerar)
                 resumo["chunks_via_modelo"] += 1
                 resumo["regras_via_modelo"] += len(regras)
         except Exception as erro:
@@ -203,6 +242,10 @@ def processar(
             resumo["falhas"] += 1
             print(f"[falha] chunk {chunk.chunk_id} ({chunk.doc}, pagina {chunk.pagina}): {erro}")
             continue
+
+        for recusada in recusadas:
+            anexar_jsonl(rejeitadas, {"chunk_id": chunk.chunk_id, "doc": chunk.doc, "pagina": chunk.pagina, **recusada})
+            resumo["regras_rejeitadas"] += 1
 
         for regra in regras:
             anexar_jsonl(saida, regra.model_dump())

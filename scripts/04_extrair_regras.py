@@ -12,6 +12,7 @@ PROPOSTAS = Path("data/regras_propostas.jsonl")
 OMISSOES = Path("data/possiveis_omissoes.jsonl")
 FALHAS = Path("data/possiveis_falhas.jsonl")
 SEM_PADRAO = Path("data/possiveis_sem_padrao.jsonl")
+REJEITADAS = Path("data/regras_rejeitadas.jsonl")
 
 
 def main() -> int:
@@ -24,7 +25,7 @@ def main() -> int:
     print(f"{len(chunks)} chunks para processar. Carregando o modelo...")
 
     gerar = criar_gerador_qwen()
-    resumo = processar(chunks, gerar, PROPOSTAS, OMISSOES, FALHAS, SEM_PADRAO)
+    resumo = processar(chunks, gerar, PROPOSTAS, OMISSOES, FALHAS, SEM_PADRAO, REJEITADAS)
 
     print("\nResumo:")
     for chave, valor in resumo.items():
@@ -35,6 +36,11 @@ def main() -> int:
         print(
             f"\n{resumo['chunks_sem_padrao']} chunk(s) sem padrao de limiar foram descartados sem "
             f"passar pelo modelo e registrados em '{SEM_PADRAO}'."
+        )
+    if resumo["regras_rejeitadas"]:
+        print(
+            f"\n{resumo['regras_rejeitadas']} regra(s) produzidas pelo modelo e recusadas pelo contrato "
+            f"foram registradas, com o motivo, em '{REJEITADAS}'. As validas do mesmo trecho seguiram."
         )
     if resumo["falhas"]:
         print(
